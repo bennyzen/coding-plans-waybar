@@ -12,6 +12,7 @@ statusline-side helpers (``extract_rate_limits``, ``extract_session``,
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from ..formatters import is_stale, now
@@ -20,7 +21,12 @@ from .base import PlanStatus
 
 PROVIDER_ID = "claude"
 DISPLAY_NAME = "Claude"
-ICON = ""  # Nerd Font: Anthropic/Claude
+# Brand icon. Ships alongside this module at providers/icons/<id>.svg,
+# source: @lobehub/icons-static-svg (MIT). The bar label uses display_name
+# (text — Pango in Waybar can't inline SVGs); the popup renders the SVG
+# directly. Brand orange from Anthropic's site.
+ICON_PATH = Path(__file__).parent / "icons" / "claude-color.svg"
+ICON_COLOR = "#D97757"
 
 DEFAULT_SLICE: dict[str, Any] = {
     "five_hour": {"pct": None, "resets_at": None},
@@ -64,7 +70,8 @@ def _classify(
 class ClaudeProvider:
     id: str = PROVIDER_ID
     display_name: str = DISPLAY_NAME
-    icon: str = ICON
+    icon_path: Path = ICON_PATH
+    icon_color: str | None = ICON_COLOR
 
     def fetch(self, config: dict[str, Any]) -> PlanStatus:
         behavior = config.get("behavior") or {}
@@ -91,7 +98,6 @@ class ClaudeProvider:
         return PlanStatus(
             provider_id=PROVIDER_ID,
             display_name=DISPLAY_NAME,
-            icon=ICON,
             short_pct=short_pct,
             weekly_pct=weekly_pct,
             resets_short_ms=int(resets_short) * 1000 if resets_short else None,

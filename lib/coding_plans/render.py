@@ -40,19 +40,34 @@ def bar_string(pct: int | None, width: int) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+def _brand_name(plan: PlanStatus) -> str:
+    """Return ``display_name`` optionally wrapped in a Pango ``<span>`` so the
+    provider's brand colour shines in the bar label (e.g. Claude's orange).
+    Waybar's text field is Pango, not an image surface — so the bar uses
+    the display name as the brand mark; the popup renders the actual SVG."""
+    try:
+        module = importlib.import_module(f"coding_plans.providers.{plan.provider_id}")
+        provider = getattr(module, "PROVIDER", None)
+    except ImportError:
+        provider = None
+    color = getattr(provider, "icon_color", None) if provider else None
+    if not color:
+        return plan.display_name
+    return f"<span foreground='{color}'>{plan.display_name}</span>"
+
+
 def render_label(plan: PlanStatus, display_cfg: dict[str, Any]) -> str:
-    fmt = display_cfg.get("bar_format", "{icon} {short_pct}%·{weekly_pct}%")
+    fmt = display_cfg.get("bar_format", "{brand} {short_pct}%·{weekly_pct}%")
     try:
         return fmt.format(
-            icon=plan.icon,
+            brand=_brand_name(plan),
             short_pct=fmt_pct(plan.short_pct),
             weekly_pct=fmt_pct(plan.weekly_pct),
             plan_tier=(plan.plan_tier or "").upper(),
             display_name=plan.display_name,
         )
     except (KeyError, IndexError):
-        # Misconfigured bar_format — fall back to the safe default.
-        return f"{plan.icon} {fmt_pct(plan.short_pct)}%·{fmt_pct(plan.weekly_pct)}%"
+        return f"{_brand_name(plan)} {fmt_pct(plan.short_pct)}%·{fmt_pct(plan.weekly_pct)}%"
 
 
 def _dim(palette: dict[str, str], s: str) -> str:

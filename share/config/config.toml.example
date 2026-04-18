@@ -4,10 +4,14 @@
 # falls back to DEFAULT_CONFIG in lib/coding_plans/config.py.
 
 [display]
-# Per-provider bar segment. Placeholders: {icon}, {short_pct}, {weekly_pct},
-# {plan_tier}, {display_name}. Each enabled provider is rendered with this
-# format string and joined with `join` between them.
-bar_format = "{icon} {short_pct}%·{weekly_pct}%"
+# Per-provider bar segment. Placeholders:
+#   {brand}        — the provider's display_name, Pango-wrapped in its
+#                    brand colour when the provider sets icon_color
+#                    (e.g. Claude's orange).
+#   {display_name} — plain text, no colour.
+#   {short_pct}, {weekly_pct}, {plan_tier}
+# Each enabled provider is rendered with this format and joined with `join`.
+bar_format = "{brand} {short_pct}%·{weekly_pct}%"
 join       = "  "
 # Emit a segment for providers whose PlanStatus has no percentages yet.
 show_empty_providers = false

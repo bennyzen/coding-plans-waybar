@@ -54,7 +54,6 @@ def _safe_fetch(provider, cfg) -> PlanStatus:
         return PlanStatus(
             provider_id=provider.id,
             display_name=provider.display_name,
-            icon=provider.icon,
             status_class="stale",
             error=f"fetch failed: {exc!r}",
         )

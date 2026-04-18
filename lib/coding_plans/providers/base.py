@@ -8,6 +8,7 @@ a ``PlanStatus``. The renderer turns ``PlanStatus`` objects into Waybar JSON
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path  # noqa: F401 — used in Provider protocol annotation
 from typing import Any, Protocol, runtime_checkable
 
 STATUS_CLASSES = ("fresh", "stale", "critical", "exhausted", "empty")
@@ -19,7 +20,6 @@ class PlanStatus:
 
     provider_id: str
     display_name: str
-    icon: str
 
     # Short-window (~5h) utilisation, 0–100. ``None`` if the provider doesn't
     # expose a short window or data is missing.
@@ -55,7 +55,13 @@ class Provider(Protocol):
 
     id: str
     display_name: str
-    icon: str
+    # Path to the provider's brand SVG (co-located at providers/icons/<id>.svg).
+    # The bar label uses ``display_name`` (Pango in Waybar can't inline SVGs);
+    # the popup renders the SVG directly. Optional: None means no brand icon.
+    icon_path: "Path | None"
+    # Pango foreground hex when the SVG should be tinted (e.g. Claude's
+    # brand orange). None = render with the active theme's text colour.
+    icon_color: str | None
 
     def fetch(self, config: dict[str, Any]) -> PlanStatus:
         """Return a ``PlanStatus`` for the current moment. MUST NOT raise —

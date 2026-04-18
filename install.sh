@@ -187,6 +187,9 @@ run "install -m 0644 '$SRC/share/config/config.toml.example' '$SHARE_DIR/config/
 run "install -m 0755 '$SRC/share/_patch_waybar.py' '$SHARE_DIR/_patch_waybar.py'"
 run "install -m 0755 '$SRC/share/_patch_style.py'  '$SHARE_DIR/_patch_style.py'"
 run "install -m 0755 '$SRC/share/_patch_toml.py'   '$SHARE_DIR/_patch_toml.py'"
+# Per-provider brand SVGs live inside the Python package at
+# lib/coding_plans/providers/icons/ — they ride along with the cp -R of
+# the lib tree a few lines above. Nothing extra to do here.
 
 # Substitute LAYER_SHELL_PRELOAD placeholder in the generated waybar module.
 # If the library wasn't found, the env prefix collapses to an empty string

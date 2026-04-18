@@ -14,7 +14,7 @@ from .paths import CONFIG_PATH
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "display": {
-        "bar_format": "{icon} {short_pct}%·{weekly_pct}%",
+        "bar_format": "{brand} {short_pct}%·{weekly_pct}%",
         "join": "  ",
         "show_empty_providers": False,
     },

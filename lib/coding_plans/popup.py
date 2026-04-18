@@ -344,7 +344,6 @@ def _safe_fetch(provider: Any, cfg: dict[str, Any]) -> PlanStatus:
         return PlanStatus(
             provider_id=provider.id,
             display_name=provider.display_name,
-            icon=provider.icon,
             status_class="stale",
             error=f"fetch failed: {exc!r}",
         )
@@ -653,8 +652,23 @@ class ProviderCard(Gtk.Box):
         self.add_css_class("cp-card")
         self.provider = provider
 
-        # Header row.
+        # Header row: [svg icon] [brand] [plan-tier chip] [status tag].
+        # The SVG comes from provider.icon_path (co-located with the provider
+        # module). GTK's default image loader honours `fill="currentColor"`
+        # when the widget has a matching CSS color, so the mono SVGs inherit
+        # the theme; pre-coloured SVGs (Claude's orange) are rendered as-is.
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+
+        icon_path = getattr(provider, "icon_path", None)
+        if icon_path and Path(icon_path).is_file():
+            self.icon_image = Gtk.Image.new_from_file(str(icon_path))
+            self.icon_image.set_pixel_size(18)
+            self.icon_image.add_css_class("cp-brand-icon")
+            self.icon_image.set_valign(Gtk.Align.CENTER)
+            header.append(self.icon_image)
+        else:
+            self.icon_image = None
+
         self.brand = Gtk.Label(xalign=0.0)
         self.brand.set_use_markup(True)
         self.brand.add_css_class("cp-brand")
@@ -748,19 +762,7 @@ class ProviderCard(Gtk.Box):
         self._extras_built = True
 
     def update(self, plan: PlanStatus, cfg: dict, palette: dict) -> None:
-        # Brand may include the nerd-font icon if the provider ships one.
-        icon = (plan.icon or "").strip()
-        brand_name = plan.display_name.upper()
-        if icon:
-            # Prepend the icon; keep the upstream spacing feel.
-            self.brand.set_markup(
-                f'<span foreground="#727272">{icon}</span>   '
-                f'<span letter_spacing="440">{brand_name}</span>'
-                '  <span foreground="#727272">·</span>  '
-                '<span letter_spacing="440">USAGE</span>'
-            )
-        else:
-            self._set_brand_markup(brand_name)
+        self._set_brand_markup(plan.display_name.upper())
 
         # Plan-tier chip (e.g. "pro") — Z.AI exposes this, Claude currently doesn't.
         if plan.plan_tier:

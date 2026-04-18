@@ -45,7 +45,12 @@ _CACHE_TTL_SECONDS = 10.0
 
 PROVIDER_ID = "zai"
 DISPLAY_NAME = "Z.AI"
-ICON = ""  # Nerd Font: brain glyph (Zhipu has no official Nerd Font icon)
+# Brand icon. Ships at providers/icons/<id>.svg, source:
+# @lobehub/icons-static-svg (MIT). icon_color stays None so the popup
+# renders the SVG using the theme's foreground — black-and-white per the
+# user's ask (white on dark themes, black on light).
+ICON_PATH = Path(__file__).parent / "icons" / "zai.svg"
+ICON_COLOR = None
 
 
 def _read_key(key_file: str) -> str | None:
@@ -106,7 +111,8 @@ def _classify(
 class ZaiProvider:
     id: str = PROVIDER_ID
     display_name: str = DISPLAY_NAME
-    icon: str = ICON
+    icon_path: Path = ICON_PATH
+    icon_color: str | None = ICON_COLOR
 
     def fetch(self, config: dict[str, Any]) -> PlanStatus:
         providers = config.get("providers") or {}
@@ -124,7 +130,6 @@ class ZaiProvider:
             return PlanStatus(
                 provider_id=PROVIDER_ID,
                 display_name=DISPLAY_NAME,
-                icon=ICON,
                 status_class="stale",
                 error=f"no api key at {key_file}",
             )
@@ -135,7 +140,6 @@ class ZaiProvider:
             return PlanStatus(
                 provider_id=PROVIDER_ID,
                 display_name=DISPLAY_NAME,
-                icon=ICON,
                 status_class="stale",
                 error=f"network: {exc.reason}",
             )
@@ -143,7 +147,6 @@ class ZaiProvider:
             return PlanStatus(
                 provider_id=PROVIDER_ID,
                 display_name=DISPLAY_NAME,
-                icon=ICON,
                 status_class="stale",
                 error=f"fetch: {exc}",
             )
@@ -153,7 +156,6 @@ class ZaiProvider:
             return PlanStatus(
                 provider_id=PROVIDER_ID,
                 display_name=DISPLAY_NAME,
-                icon=ICON,
                 status_class="stale",
                 error=f"api: {msg}",
             )
@@ -180,7 +182,6 @@ class ZaiProvider:
         return PlanStatus(
             provider_id=PROVIDER_ID,
             display_name=DISPLAY_NAME,
-            icon=ICON,
             short_pct=int(short_pct) if short_pct is not None else None,
             weekly_pct=int(weekly_pct) if weekly_pct is not None else None,
             resets_short_ms=int(resets_short_ms) if resets_short_ms else None,

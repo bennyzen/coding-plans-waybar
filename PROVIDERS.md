@@ -1,6 +1,13 @@
 # Adding a provider
 
-A provider is a Python module in `lib/coding_plans/providers/` that tells the bar + popup how to fetch usage for a given AI coding-plan service. v1 ships two: Claude and Z.AI. This doc shows how to add a third.
+A provider is a Python module in `lib/coding_plans/providers/` that tells the bar + popup how to fetch usage for a given AI coding-plan service. v1 ships two: Claude and Z.AI.
+
+**Adding a new provider is two files:**
+
+1. `lib/coding_plans/providers/<id>.py` — the provider module.
+2. `lib/coding_plans/providers/icons/<id>.svg` — the brand SVG (MIT/public-domain; grab from [lobehub.com/icons](https://lobehub.com/icons) for anything AI-shaped).
+
+Then add `[providers.<id>]` to `~/.config/coding-plans/config.toml` with `enabled = true`. That's it — no registry edits, no font rebuild.
 
 ## The contract
 
@@ -8,12 +15,21 @@ Every provider exposes a module-level object named `PROVIDER` that satisfies the
 
 ```python
 class Provider(Protocol):
-    id: str              # slug used as the config section name ("claude", "zai", ...)
-    display_name: str    # shown in the popup header ("Claude")
-    icon: str            # nerd-font glyph; "" for none
+    id: str                     # slug used as the config section name ("claude", "zai")
+    display_name: str           # shown in the bar label + popup header ("Claude")
+    icon_path: Path | None      # Path to the brand SVG — ships at providers/icons/<id>.svg.
+                                # The popup renders it natively. None = no brand icon.
+    icon_color: str | None      # Hex colour for the bar label text (e.g. Claude's #D97757).
+                                # None = inherits the active theme's foreground.
 
     def fetch(self, config: dict) -> PlanStatus: ...
 ```
+
+**Where each field shows up:**
+
+- **Bar label** — `display_name` rendered in `icon_color` (if set). Waybar's text is Pango, which can't embed SVGs, so the bar uses coloured text as the brand mark.
+- **Popup card** — `icon_path`'s SVG is rendered via `Gtk.Image` in the card header, tinted by the GTK theme when the SVG uses `fill="currentColor"` or hard-coded when it carries its own colour.
+- **Tooltip header** — `display_name` in monochrome (the tooltip is also Pango).
 
 `fetch()` MUST NOT raise. Any error (missing credentials, API down, bad response) must return a `PlanStatus` with `status_class="stale"` and a short human-readable `error` string. The bar + popup treat `error` as a signal to render the stale tag; they don't surface the string itself in the bar label, but they print it in the tooltip and the popup card's error row.
 
@@ -59,8 +75,8 @@ Both are optional. A provider that supplies only `fetch()` gets the standard two
 
 from __future__ import annotations
 
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 from .base import PlanStatus
 
@@ -68,7 +84,8 @@ from .base import PlanStatus
 class FooProvider:
     id = "foo"
     display_name = "Foo"
-    icon = "󰒪"
+    icon_path = Path(__file__).parent / "icons" / "foo.svg"
+    icon_color = "#6B9BD1"  # brand blue, or None to skip tinting
 
     def fetch(self, config: dict[str, Any]) -> PlanStatus:
         providers = config.get("providers") or {}
@@ -79,7 +96,6 @@ class FooProvider:
             return PlanStatus(
                 provider_id=self.id,
                 display_name=self.display_name,
-                icon=self.icon,
                 status_class="stale",
                 error=f"no usage file at {path}",
             )
@@ -93,7 +109,6 @@ class FooProvider:
         return PlanStatus(
             provider_id=self.id,
             display_name=self.display_name,
-            icon=self.icon,
             short_pct=pct,
             status_class=cls,
         )
@@ -101,6 +116,8 @@ class FooProvider:
 
 PROVIDER = FooProvider()
 ```
+
+Drop `foo.svg` at `lib/coding_plans/providers/icons/foo.svg` and you're done.
 
 And the config:
 
@@ -136,10 +153,12 @@ python3 -m venv --system-site-packages .pytest_venv
 
 ## Icons
 
-- Use a glyph that's present in **Nerd Font** (the repo's default). Providers without an obvious glyph in the font can use a generic one like `` (brain) or `` (plug).
-- `icon` becomes the `{icon}` placeholder in the user's `bar_format`. Keep it to a single glyph so the bar doesn't expand every tick.
+- Source: [lobehub.com/icons](https://lobehub.com/icons) — MIT-licensed SVGs for every major AI provider. Grab the mono form (`{id}.svg`, uses `currentColor`) and the color form (`{id}-color.svg`, brand palette baked in) and ship whichever fits the visual you want in the popup card.
+- Put the SVG at `lib/coding_plans/providers/icons/<id>.svg` (or `<id>-color.svg` — the filename just has to match what `icon_path` points at).
+- `icon_color` drives the bar label colour only. The popup reads the SVG directly.
 
 ## Not supported in v1
 
-- Per-provider bar segments with a different `bar_format`. v1 applies one global format to every provider's segment, with the provider's `icon`/`plan_tier`/`display_name` substituted in.
+- Per-provider bar segments with a different `bar_format`. v1 applies one global format to every provider's segment, with the provider's `{brand}`/`{display_name}`/`{short_pct}`/`{weekly_pct}`/`{plan_tier}` substituted in.
 - Providers that refresh their own rendering asynchronously. The bar polls at Waybar's configured interval (default 15s); the popup polls at 1s. Providers must be safe to `fetch()` at either cadence.
+- **SVG icons in the bar label** — Waybar's label is Pango text, which can't embed SVGs. The brand mark in the bar is `display_name` tinted by `icon_color`; the SVG shows in the popup and tooltip header. If you need pictorial icons in the bar, fork into a multi-module layout (one `custom/coding-plans-<id>` per provider, with CSS `background-image: url(...)`).
