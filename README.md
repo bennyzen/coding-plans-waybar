@@ -4,6 +4,8 @@ A Waybar widget for AI coding-plan usage. One module per provider, each with its
 
 Soft-forked from [infiniV/claude-usage-waybar](https://github.com/infiniV/claude-usage-waybar) (Claude-only) and extended with a pluggable provider system.
 
+![config.toml on the left, the per-provider tooltip blocks on the right](example1.webp)
+
 ## v1 providers
 
 - **Claude** (Anthropic) — via Claude Code statusLine + `ccusage`
@@ -69,6 +71,8 @@ padding          = "0 8px 0 23px" # room on the left for the icon
 margin           = "0 3px"
 icon_size        = "13px"
 icon_position    = "6px center"
+icon_bg_color    = ""             # e.g. "#ffffff" — disc behind the icon
+icon_bg_padding  = "2px"          # ring width around the icon
 border_radius    = ""             # e.g. "10px" for a pill shape
 color            = "@foreground"  # uses the active Waybar theme's var
 
@@ -83,6 +87,10 @@ exhausted_weight = "700"
 # Per-provider override — bump Claude's icon a bit larger:
 [providers.claude.style]
 icon_size = "15px"
+
+# Per-provider override — white disc behind just the Z.AI glyph:
+[providers.zai.style]
+icon_bg_color = "#ffffff"
 ```
 
 ## Layout

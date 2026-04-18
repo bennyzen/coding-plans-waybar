@@ -43,6 +43,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "margin":           "0 3px",
         "icon_size":        "13px",
         "icon_position":    "6px center",
+        # Optional coloured disc behind the icon. Useful when a mono brand
+        # SVG (e.g. Z.AI's black glyph) vanishes against a dark bar.
+        "icon_bg_color":    "",           # "" = no backdrop; e.g. "#ffffff"
+        "icon_bg_padding":  "2px",        # ring width around the icon
         "border_radius":    "",           # e.g. "10px" for pill, "" for square
         "color":            "@foreground",
         "fresh_opacity":    0.92,

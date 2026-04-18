@@ -49,6 +49,42 @@ def test_waybar_uninstall_removes_block(tmp_path):
     assert "coding-plans-waybar" not in final
 
 
+def test_waybar_reinstall_cleans_stale_entries(tmp_path):
+    """After a prior install, re-running with different provider names must
+    NOT leave dangling commas in ``modules-right`` — the leading/trailing
+    cleanup used to miss the case where stripped entries sat at the head
+    of the array."""
+    cfg = tmp_path / "config.jsonc"
+    module_old = tmp_path / "module-old.jsonc"
+    module_new = tmp_path / "module-new.jsonc"
+    cfg.write_text(
+        '{\n'
+        '  "modules-right": [\n'
+        '        "custom/coding-plans-claude",\n'
+        '        "custom/coding-plans-zai",\n'
+        '        "custom/updates"\n'
+        '  ]\n'
+        '}\n'
+    )
+    module_old.write_text(
+        '"custom/coding-plans-claude": {},\n'
+        '"custom/coding-plans-zai": {}\n'
+    )
+    module_new.write_text('"custom/coding-plans-gemini": {}\n')
+
+    _run([sys.executable, str(PATCH_WAYBAR), "install", str(cfg), str(module_old)])
+    _run([sys.executable, str(PATCH_WAYBAR), "install", str(cfg), str(module_new)])
+
+    text = cfg.read_text()
+    # No bare comma sits on its own line inside modules-right.
+    assert "\n        ,\n" not in text
+    assert ", ," not in text
+    assert "custom/coding-plans-claude" not in text
+    assert "custom/coding-plans-zai" not in text
+    assert "custom/coding-plans-gemini" in text
+    assert "custom/updates" in text
+
+
 def test_waybar_insert_after_anchor(tmp_path):
     cfg = tmp_path / "config.jsonc"
     module = tmp_path / "module.jsonc"

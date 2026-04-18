@@ -73,8 +73,9 @@ def remove_from_modules_right(text: str) -> str:
             if collapsed == contents:
                 break
             contents = collapsed
-        contents = re.sub(r'\[\s*,', "[", contents)  # leading comma
-        contents = re.sub(r',\s*\]', "]", contents)  # trailing comma
+        # ``contents`` is the inside of [...] — anchor with \A/\Z, not the brackets.
+        contents = re.sub(r'\A\s*,', "", contents)  # leading comma
+        contents = re.sub(r',\s*\Z', "", contents)  # trailing comma
         return f'"modules-right": [{contents}]'
 
     return re.sub(r'"modules-right"\s*:\s*\[(.*?)\]', stripper, text, count=1, flags=re.DOTALL)

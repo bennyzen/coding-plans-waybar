@@ -25,6 +25,10 @@ padding        = "0 8px 0 23px"
 margin         = "0 3px"
 icon_size      = "13px"
 icon_position  = "6px center"    # x y — passed to CSS background-position
+# Coloured disc behind the icon. Handy for mono brand logos (e.g. Z.AI's
+# black glyph) that disappear against a dark bar. "" disables the backdrop.
+icon_bg_color  = ""              # e.g. "#ffffff" for a white disc
+icon_bg_padding = "2px"          # ring width around the icon
 border_radius  = ""              # e.g. "10px" for a pill shape
 color          = "@foreground"   # base text colour (uses the theme's var)
 # Per-state appearance.
@@ -39,6 +43,10 @@ exhausted_weight  = "700"
 # Example per-provider override — bump Claude's icon slightly:
 # [providers.claude.style]
 # icon_size = "15px"
+
+# Example: white disc only behind the Z.AI logo (leave Claude bare).
+# [providers.zai.style]
+# icon_bg_color = "#ffffff"
 
 # ─── Rest is behaviour, not look ────────────────────────────────────────
 

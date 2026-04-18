@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,6 +47,8 @@ DEFAULT_STYLE: dict[str, Any] = {
     "margin":           "0 3px",
     "icon_size":        "13px",
     "icon_position":    "6px center",
+    "icon_bg_color":    "",      # "" = no backdrop
+    "icon_bg_padding":  "2px",
     "border_radius":    "",
     "color":            "@foreground",
     "fresh_opacity":    0.92,
@@ -114,7 +117,96 @@ MODULE_TEMPLATE = '''\
 }}'''
 
 
-def _style_decls(s: dict[str, Any]) -> str:
+def _parse_pos(icon_position: str) -> tuple[str, str]:
+    """Split e.g. '6px center' → ('6px', 'center')."""
+    parts = (icon_position or "").strip().split()
+    x = parts[0] if len(parts) > 0 else "0"
+    y = parts[1] if len(parts) > 1 else "center"
+    return x, y
+
+
+def _color_slug(color: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in color).strip("_") or "bg"
+
+
+def _write_disc_svg(icons_dir: Path, color: str) -> Path:
+    """Emit a razor-sharp filled circle SVG, cached by colour slug.
+
+    A 24×24 viewBox (matches the brand SVGs LobeHub ships) and explicit
+    width/height keep librsvg's rasteriser happy; unit-less tiny
+    viewBoxes can render as mush at small background-sizes.
+    """
+    path = icons_dir / f"disc-{_color_slug(color)}.svg"
+    if not path.exists():
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' "
+            "width='24' height='24' viewBox='0 0 24 24'>"
+            f"<circle cx='12' cy='12' r='12' fill='{color}'/></svg>"
+        )
+        path.write_text(svg, encoding="utf-8")
+    return path
+
+
+_PX_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*px\s*$")
+
+
+def _as_px(value: str) -> float | None:
+    m = _PX_RE.match(value or "")
+    return float(m.group(1)) if m else None
+
+
+def _fmt_px(n: float) -> str:
+    return f"{int(n)}px" if n == int(n) else f"{n}px"
+
+
+def _background_lines(
+    s: dict[str, Any], icon_path: Path, disc_path: Path | None
+) -> list[str]:
+    """Emit the ``background-*`` properties.
+
+    When ``disc_path`` is set, layer a solid SVG disc behind the brand
+    icon. Disc diameter = ``icon_size + 2 * icon_bg_padding``, positioned
+    so its centre aligns with the icon's centre.
+    """
+    icon_size = s["icon_size"]
+    icon_pos = s["icon_position"]
+
+    if disc_path is None:
+        return [
+            f'  background-image: url("{icon_path}");',
+            f'  background-size: {icon_size} {icon_size};',
+            f'  background-position: {icon_pos};',
+            '  background-repeat: no-repeat;',
+        ]
+
+    padding = s.get("icon_bg_padding") or "0px"
+    icon_x, icon_y = _parse_pos(icon_pos)
+    # Prefer literal px arithmetic over calc(): GTK4 CSS handles calc(),
+    # but a few stacks choke on calc inside a multi-value background-size
+    # and silently fall back to ``auto`` — which blows the disc up to
+    # cover the whole module. Precomputing dodges the whole risk.
+    isz = _as_px(icon_size)
+    pad = _as_px(padding)
+    ix = _as_px(icon_x)
+    if isz is not None and pad is not None:
+        disc_size = _fmt_px(isz + 2 * pad)
+    else:
+        disc_size = f"calc({icon_size} + 2 * {padding})"
+    if ix is not None and pad is not None:
+        disc_x = _fmt_px(ix - pad)
+    else:
+        disc_x = f"calc({icon_x} - {padding})"
+    return [
+        f'  background-image: url("{icon_path}"), url("{disc_path}");',
+        f'  background-size: {icon_size} {icon_size}, {disc_size} {disc_size};',
+        f'  background-position: {icon_pos}, {disc_x} {icon_y};',
+        '  background-repeat: no-repeat, no-repeat;',
+    ]
+
+
+def _style_decls(
+    s: dict[str, Any], icon_path: Path, disc_path: Path | None
+) -> str:
     """Emit the base rule body (excludes per-state rules)."""
     out: list[str] = []
     if s.get("font_family"):
@@ -131,9 +223,7 @@ def _style_decls(s: dict[str, Any]) -> str:
         out.append(f"  margin: {s['margin']};")
     if s.get("border_radius"):
         out.append(f"  border-radius: {s['border_radius']};")
-    out.append('  background-repeat: no-repeat;')
-    out.append(f'  background-size: {s["icon_size"]} {s["icon_size"]};')
-    out.append(f'  background-position: {s["icon_position"]};')
+    out.extend(_background_lines(s, icon_path, disc_path))
     out.append('  font-feature-settings: "tnum";')
     return "\n".join(out)
 
@@ -141,10 +231,11 @@ def _style_decls(s: dict[str, Any]) -> str:
 def _render_style_for(pid: str, cfg: dict[str, Any], icons_dir: Path) -> str:
     s = _merged_style(cfg, pid)
     icon_path = icons_dir / _icon_filename(pid, icons_dir)
-    body = _style_decls(s)
+    bg_color = (s.get("icon_bg_color") or "").strip()
+    disc_path = _write_disc_svg(icons_dir, bg_color) if bg_color else None
+    body = _style_decls(s, icon_path, disc_path)
     return f"""\
 #custom-coding-plans-{pid} {{
-  background-image: url("{icon_path}");
 {body}
 }}
 #custom-coding-plans-{pid}.fresh     {{ color: {s['color']}; opacity: {s['fresh_opacity']}; }}
