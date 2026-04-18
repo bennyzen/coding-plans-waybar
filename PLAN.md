@@ -236,16 +236,19 @@ Each step should leave the widget in a working state that can be tested end-to-e
     - Popover opens on click, renders both cards.
     - Systemd timer runs on schedule and updates today's Claude numbers.
 
-## Decisions to confirm before building
+## Decisions (confirmed with the user)
 
-The user explicitly invited questions. Flag these in the first reply of the build session:
+1. **Name:** `coding-plans-waybar`. Final.
+2. **Bar format:** ` 4%·12%   15%·32%` (icon + 5h·weekly per provider, two spaces between providers). Final.
+3. **Future-provider stubs:** out of scope for v1. Ship **Claude + Z.AI only**. Instead of empty stubs, provide a clean **`PROVIDERS.md`** template showing exactly what a community contributor must implement: the `Provider` protocol, `PlanStatus` shape, a minimal example file, and test expectations. The provider layer itself must stay flexible enough that a new file in `lib/providers/` plus a config section is the only change needed — no registry edits.
+4. **No migration logic in `install.sh`.** The target audience is users installing fresh. A user with the upstream `claude-usage-waybar` already installed can uninstall it themselves before installing this fork; we do not automate that. Keep the installer focused on the one-time fresh install.
 
-1. **Name.** `coding-plans-waybar` — accept, or rename?
-2. **Bar format.** Default ` 4%·12%   15%·32%` (icon + 5h·weekly per provider). Alternatives: single worst-% per provider, or text-only `C 4/12  Z 15/32`.
-3. **Stubs for future providers.** v1 ships Claude + Z.AI concrete. Do we pre-stub `moonshot.py`, `qwen.py`, `dashscope.py` as NotImplementedError skeletons, or leave that for when needed?
-4. **Migration aggression.** Should `install.sh` auto-remove the old `claude-usage-waybar` and `zai-usage-bar` (with backup), or require `--migrate` flag?
-5. **Config path.** `~/.config/coding-plans/` — accept, or keep `~/.config/claude-usage/` to ease migration?
-6. **Popover rewrite vs extend.** Upstream's popup is ~1000 lines of GTK4. Cheaper to extend (add a provider loop around the existing rendering) than rewrite. OK to accept more coupling for v1?
+## Open items the builder can decide
+
+These weren't important enough for the user to rule on — use judgment:
+
+- **Config path:** `~/.config/coding-plans/` vs `~/.config/claude-usage/`. Default to `~/.config/coding-plans/` unless there's a strong reason otherwise.
+- **Popover strategy:** extending upstream's GTK code (with a provider loop around existing rendering) vs. a clean rewrite. Either is fine. Extending is faster for v1.
 
 ## Working references (preserve across sessions)
 
