@@ -76,7 +76,7 @@ icon_bg_padding  = "2px"          # ring width around the icon
 border_radius    = ""             # e.g. "10px" for a pill shape
 color            = "@foreground"  # uses the active Waybar theme's var
 
-fresh_opacity    = 0.92
+fresh_opacity    = 1.0            # dims the whole module (icon + disc + text)
 stale_opacity    = 0.4
 empty_opacity    = 0.28
 critical_color   = "#c9a227"

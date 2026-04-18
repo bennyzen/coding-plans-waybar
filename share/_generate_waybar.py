@@ -51,7 +51,7 @@ DEFAULT_STYLE: dict[str, Any] = {
     "icon_bg_padding":  "2px",
     "border_radius":    "",
     "color":            "@foreground",
-    "fresh_opacity":    0.92,
+    "fresh_opacity":    1.0,
     "stale_opacity":    0.4,
     "empty_opacity":    0.28,
     "critical_color":   "#c9a227",

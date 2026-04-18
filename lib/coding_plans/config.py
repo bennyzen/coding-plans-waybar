@@ -49,7 +49,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "icon_bg_padding":  "2px",        # ring width around the icon
         "border_radius":    "",           # e.g. "10px" for pill, "" for square
         "color":            "@foreground",
-        "fresh_opacity":    0.92,
+        # Module-level opacity dims the entire module — including any
+        # icon_bg_color disc. Leave "fresh" at 1.0 so crisp colours stay
+        # crisp; stale/empty still fade for at-a-glance status.
+        "fresh_opacity":    1.0,
         "stale_opacity":    0.4,
         "empty_opacity":    0.28,
         "critical_color":   "#c9a227",
