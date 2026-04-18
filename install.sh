@@ -246,18 +246,32 @@ else
 fi
 ok "statusLine.command → $new_cmd"
 
-# ───────── patch ~/.config/waybar/config.jsonc ───────────────────────────
-step "patch $WAYBAR_DIR/config.jsonc"
-if [[ ! -f "$WAYBAR_DIR/config.jsonc" ]]; then
-  warn "$WAYBAR_DIR/config.jsonc not found — skipping. Add this block manually to any config that waybar loads:"
+# ───────── patch waybar config ───────────────────────────────────────────
+# Waybar's default config lives at ~/.config/waybar/config.jsonc, but Omarchy
+# and many ML4W-style setups use a bare ~/.config/waybar/config (no ext) or
+# a per-theme file under themes/<name>/config. Honour $WAYBAR_CONFIG if set,
+# otherwise probe in order.
+WAYBAR_CFG="${WAYBAR_CONFIG:-}"
+if [[ -z "$WAYBAR_CFG" ]]; then
+  for cand in "$WAYBAR_DIR/config.jsonc" "$WAYBAR_DIR/config.json" "$WAYBAR_DIR/config"; do
+    if [[ -f "$cand" ]]; then
+      WAYBAR_CFG="$cand"
+      break
+    fi
+  done
+fi
+
+step "patch waybar config"
+if [[ -z "$WAYBAR_CFG" || ! -f "$WAYBAR_CFG" ]]; then
+  warn "no waybar config found under $WAYBAR_DIR (tried config.jsonc, config.json, config). Add this block manually to any config that waybar loads:"
   printf '%s\n' "$C_DIM"
   # Print from the source tree so --dry-run works even before assets copy.
   cat "$SRC/share/waybar/module.jsonc"
   printf '%s\n' "$C_RESET"
 else
-  run "cp '$WAYBAR_DIR/config.jsonc' '$WAYBAR_DIR/config.jsonc.bak.coding-plans'"
-  run "python3 '$SHARE_DIR/_patch_waybar.py' install '$WAYBAR_DIR/config.jsonc' '$SHARE_DIR/waybar/module.jsonc'"
-  ok "custom/coding-plans added (backup at config.jsonc.bak.coding-plans)"
+  run "cp '$WAYBAR_CFG' '$WAYBAR_CFG.bak.coding-plans'"
+  run "python3 '$SHARE_DIR/_patch_waybar.py' install '$WAYBAR_CFG' '$SHARE_DIR/waybar/module.jsonc'"
+  ok "custom/coding-plans added to $WAYBAR_CFG (backup at $WAYBAR_CFG.bak.coding-plans)"
 fi
 
 step "patch $WAYBAR_DIR/style.css"

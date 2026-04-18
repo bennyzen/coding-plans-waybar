@@ -78,23 +78,35 @@ if p.exists():
   fi
 fi
 
-step "revert waybar config.jsonc"
-if [[ -f "$WAYBAR_DIR/config.jsonc" ]]; then
+step "revert waybar config"
+# Same probing logic as install.sh: honour $WAYBAR_CONFIG, else try common
+# filenames in $WAYBAR_DIR.
+WAYBAR_CFG="${WAYBAR_CONFIG:-}"
+if [[ -z "$WAYBAR_CFG" ]]; then
+  for cand in "$WAYBAR_DIR/config.jsonc" "$WAYBAR_DIR/config.json" "$WAYBAR_DIR/config"; do
+    if [[ -f "$cand" ]]; then
+      WAYBAR_CFG="$cand"
+      break
+    fi
+  done
+fi
+
+if [[ -n "$WAYBAR_CFG" && -f "$WAYBAR_CFG" ]]; then
   if [[ -f "$SHARE_DIR/_patch_waybar.py" ]]; then
-    python3 "$SHARE_DIR/_patch_waybar.py" uninstall "$WAYBAR_DIR/config.jsonc"
+    python3 "$SHARE_DIR/_patch_waybar.py" uninstall "$WAYBAR_CFG"
   else
     # Fall back to inline python if the share dir is already gone.
-    python3 -c "
-import re
+    WAYBAR_CFG_ARG="$WAYBAR_CFG" python3 -c "
+import os, re
 from pathlib import Path
-p = Path('$WAYBAR_DIR/config.jsonc')
+p = Path(os.environ['WAYBAR_CFG_ARG'])
 t = p.read_text()
 t = re.sub(r'// >>> coding-plans-waybar >>>.*?// <<< coding-plans-waybar <<<\n?', '', t, flags=re.DOTALL)
 t = re.sub(r',?\s*\"custom/coding-plans\"', '', t)
 p.write_text(t)
 "
   fi
-  ok "custom/coding-plans removed"
+  ok "custom/coding-plans removed from $WAYBAR_CFG"
 fi
 
 step "revert waybar style.css"
