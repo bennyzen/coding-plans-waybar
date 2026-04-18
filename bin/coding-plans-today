@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Merge today's token + cost totals from `ccusage daily --json` into the
-# Claude provider's state file (~/.cache/coding-plans/claude.json).
+# shared state file at ~/.cache/coding-plans/state.json under
+# providers.claude.today.
 #
 # ccusage v18 schema (captured 2026-04-15):
 #   daily[].{date, inputTokens, outputTokens, cacheCreationTokens,
@@ -12,7 +13,7 @@
 set -euo pipefail
 
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
-STATE="$XDG_CACHE_HOME/coding-plans/claude.json"
+STATE="$XDG_CACHE_HOME/coding-plans/state.json"
 
 mkdir -p "$(dirname "$STATE")"
 
@@ -57,29 +58,42 @@ trap 'rm -f "$tmp"' EXIT
 
 if [[ -f "$STATE" ]]; then
   jq --argjson s "$summary" '
-    .today = {
-      tokens:  ($s.tokens  // 0),
-      cost_usd: ($s.cost   // 0),
-      models:  ($s.models  // [])
-    }
+    .schema = 2
+    | .providers = (.providers // {})
+    | .providers.claude = (.providers.claude // {
+        five_hour: { pct: null, resets_at: null },
+        seven_day: { pct: null, resets_at: null },
+        session: { id: "", model_id: "", model_name: "", cost_usd: 0,
+                   lines_added: 0, lines_removed: 0,
+                   input_tokens: 0, output_tokens: 0, context_pct: null },
+        updated_at: 0,
+        source: "none"
+      })
+    | .providers.claude.today = {
+        tokens:   ($s.tokens // 0),
+        cost_usd: ($s.cost   // 0),
+        models:   ($s.models // [])
+      }
   ' "$STATE" > "$tmp"
 else
   jq -n --argjson s "$summary" '
     {
-      schema: 1,
-      updated_at: 0,
-      source: "ccusage",
-      five_hour: { pct: null, resets_at: null },
-      seven_day: { pct: null, resets_at: null },
-      today: {
-        tokens:  ($s.tokens  // 0),
-        cost_usd: ($s.cost   // 0),
-        models:  ($s.models  // [])
-      },
-      session: {
-        id: "", model_id: "", model_name: "",
-        cost_usd: 0, lines_added: 0, lines_removed: 0,
-        input_tokens: 0, output_tokens: 0, context_pct: null
+      schema: 2,
+      providers: {
+        claude: {
+          five_hour: { pct: null, resets_at: null },
+          seven_day: { pct: null, resets_at: null },
+          today: {
+            tokens:   ($s.tokens // 0),
+            cost_usd: ($s.cost   // 0),
+            models:   ($s.models // [])
+          },
+          session: { id: "", model_id: "", model_name: "", cost_usd: 0,
+                     lines_added: 0, lines_removed: 0,
+                     input_tokens: 0, output_tokens: 0, context_pct: null },
+          updated_at: 0,
+          source: "ccusage"
+        }
       }
     }
   ' > "$tmp"
