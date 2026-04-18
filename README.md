@@ -107,7 +107,7 @@ icon_bg_color = "#ffffff"
 │   └── providers/
 │       ├── <id>.py           — per-provider module (fetch + hooks)
 │       └── icons/<id>.svg    — per-provider brand SVG
-├── icons/                    — flat copy of provider SVGs (what CSS url() points at)
+├── icons/                    — flat copy of provider SVGs + any generated disc-<color>.svg backdrops
 ├── _generate_waybar.py       — reads config.toml, emits module + style blocks
 ├── _patch_waybar.py          — installs/uninstalls guarded Waybar block
 ├── _patch_style.py           — installs/uninstalls guarded style.css block
@@ -133,7 +133,7 @@ python3 -m venv --system-site-packages .pytest_venv
 .pytest_venv/bin/python -m pytest tests/ -q
 ```
 
-28 tests: provider fetches, bar rendering, installer patcher roundtrip.
+32 tests: provider fetches, bar rendering, installer patcher roundtrip, waybar generator.
 
 ## Attribution
 
