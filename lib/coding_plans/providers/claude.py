@@ -234,6 +234,19 @@ def record_turn(raw: str) -> None:
     five, week = extract_rate_limits(data)
     session = extract_session(data)
 
+    has_rate = (
+        five["pct"] is not None
+        or five["resets_at"] is not None
+        or week["pct"] is not None
+        or week["resets_at"] is not None
+    )
+    has_session = bool(session["id"])
+    if not has_rate and not has_session:
+        # Claude Code piped stdin but no fields the UI cares about — don't
+        # touch state.json (keeps "stale" detection honest and avoids
+        # rewriting the file every silent turn).
+        return
+
     state = load_state()
     slice_ = dict(provider_state(state, PROVIDER_ID) or DEFAULT_SLICE)
     # Only overwrite rate-limit fields when Claude Code actually gives them.
