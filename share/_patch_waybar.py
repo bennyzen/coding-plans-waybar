@@ -13,6 +13,7 @@ markers; running uninstall on a clean file is a no-op.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,6 +21,10 @@ from pathlib import Path
 BEGIN = "// >>> coding-plans-waybar >>>"
 END = "// <<< coding-plans-waybar <<<"
 MODULE_NAME = '"custom/coding-plans"'
+# Anchor the modules-right insertion after this entry if present. Falls back
+# to "custom/claude" (common on claude-usage-waybar holdovers), then
+# prepends to the array.
+INSERT_AFTER = os.environ.get("CODING_PLANS_INSERT_AFTER", "").strip()
 
 
 def strip_block(text: str) -> str:
@@ -39,12 +44,15 @@ def add_to_modules_right(text: str) -> str:
         contents = match.group(1)
         if MODULE_NAME in contents:
             return match.group(0)
-        # Place ours right after "custom/claude" if that exists, else at front.
-        after = '"custom/claude"'
-        if after in contents:
-            return match.group(0).replace(after, f'{after},\n    {MODULE_NAME}', 1)
-        # Insert as the first entry.
-        return match.group(0).replace("[", f"[\n    {MODULE_NAME},", 1)
+        # Try the explicit anchor first, then the legacy "custom/claude"
+        # holdover, then fall through to front-of-array.
+        for anchor_name in (INSERT_AFTER, "custom/claude"):
+            if not anchor_name:
+                continue
+            anchor = f'"{anchor_name}"'
+            if anchor in contents:
+                return match.group(0).replace(anchor, f'{anchor},\n        {MODULE_NAME}', 1)
+        return match.group(0).replace("[", f"[\n        {MODULE_NAME},", 1)
 
     return re.sub(r'"modules-right"\s*:\s*\[(.*?)\]', injector, text, count=1, flags=re.DOTALL)
 
