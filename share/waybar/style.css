@@ -1,0 +1,39 @@
+/* coding-plans-waybar — appended into ~/.config/waybar/style.css
+ * between marker comments. Idempotent; installer rewrites this block.
+ *
+ * Designed to ride whatever @foreground the current theme defines.
+ * Warn/critical/exhausted fall back to a small set of distinctive hues
+ * that work on both light and dark themes.
+ */
+
+#custom-coding-plans {
+  padding: 0 10px;
+  margin: 0 4px;
+  font-feature-settings: "tnum";
+  letter-spacing: 0.04em;
+}
+
+#custom-coding-plans.fresh {
+  color: @foreground;
+  opacity: 0.92;
+}
+
+#custom-coding-plans.stale {
+  color: @foreground;
+  opacity: 0.4;
+}
+
+#custom-coding-plans.critical {
+  color: #c9a227;   /* dim amber — legible on both IBM-black and Tokyo-Night */
+  font-weight: 700;
+}
+
+#custom-coding-plans.exhausted {
+  color: #d24646;   /* rust */
+  font-weight: 700;
+}
+
+#custom-coding-plans.empty {
+  color: @foreground;
+  opacity: 0.28;
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=coding-plans-waybar: backfill today's Claude tokens + cost from ccusage
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/coding-plans-today
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

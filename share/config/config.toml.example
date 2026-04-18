@@ -1,0 +1,47 @@
+# ~/.config/coding-plans/config.toml
+#
+# Every key below is consumed by at least one script. Anything omitted
+# falls back to DEFAULT_CONFIG in lib/coding_plans/config.py.
+
+[display]
+# Per-provider bar segment. Placeholders: {icon}, {short_pct}, {weekly_pct},
+# {plan_tier}, {display_name}. Each enabled provider is rendered with this
+# format string and joined with `join` between them.
+bar_format = "{icon} {short_pct}%·{weekly_pct}%"
+join       = "  "
+# Emit a segment for providers whose PlanStatus has no percentages yet.
+show_empty_providers = false
+
+[behavior]
+# After this long with no update, a provider's segment is tagged stale.
+stale_after_seconds = 300
+
+[thresholds]
+# Worst-wins aggregation across providers:
+#   >= exhausted → CSS class "exhausted"
+#   >= critical  → CSS class "critical"
+critical  = 80
+exhausted = 100
+
+[tooltip]
+show_progress_bars = true
+show_today         = true      # Claude provider only (ccusage backfill)
+show_updated_ago   = true
+bar_width          = 10
+
+[providers.claude]
+enabled = true
+# State file written by coding-plans-statusline (every Claude Code turn) and
+# coding-plans-today (every 5 minutes from the ccusage backfill timer).
+state_path      = "~/.cache/coding-plans/claude.json"
+# If you already had a statusLine.command in ~/.claude/settings.json, the
+# installer records it here and coding-plans-statusline chains to it.
+chained_command = ""
+
+[providers.zai]
+enabled       = true
+api_key_file  = "~/.config/coding-plans/zai-key"
+endpoint      = "https://api.z.ai/api/monitor/usage/quota/limit"
+# HTTP timeout in seconds. The widget ticks every 15s; we don't want one
+# stuck fetch to block rendering.
+timeout       = 6

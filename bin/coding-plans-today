@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Merge today's token + cost totals from `ccusage daily --json` into the
+# Claude provider's state file (~/.cache/coding-plans/claude.json).
+#
+# ccusage v18 schema (captured 2026-04-15):
+#   daily[].{date, inputTokens, outputTokens, cacheCreationTokens,
+#            cacheReadTokens, totalTokens, totalCost, modelsUsed, modelBreakdowns}
+#
+# ccusage has NO machine-readable message count — we intentionally don't
+# write one. Popup/tooltip show only fields that map to real data.
+
+set -euo pipefail
+
+XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+STATE="$XDG_CACHE_HOME/coding-plans/claude.json"
+
+mkdir -p "$(dirname "$STATE")"
+
+find_ccusage() {
+  if command -v ccusage >/dev/null 2>&1; then echo "ccusage"; return 0; fi
+  if command -v bunx    >/dev/null 2>&1; then echo "bunx ccusage"; return 0; fi
+  if command -v pnpm    >/dev/null 2>&1; then echo "pnpm dlx ccusage"; return 0; fi
+  if command -v npx     >/dev/null 2>&1; then echo "npx --yes ccusage"; return 0; fi
+  return 1
+}
+
+runner="$(find_ccusage || true)"
+if [[ -z "${runner:-}" ]]; then
+  exit 0
+fi
+
+today="$(date +%Y%m%d)"
+raw="$($runner daily --json --since "$today" --until "$today" 2>/dev/null || true)"
+if [[ -z "$raw" ]]; then
+  exit 0
+fi
+
+summary="$(printf '%s' "$raw" | jq -c '
+  (.daily // []) as $rows
+  | {
+      tokens: ($rows | map(.totalTokens // 0) | add // 0),
+      cost:   ($rows | map(.totalCost   // 0) | add // 0),
+      models: (
+        ($rows | map(.modelsUsed // []) | add // [])
+        | map(sub("^claude-"; "") | sub("-[0-9]+$"; ""))
+        | unique
+      )
+    }
+' 2>/dev/null || true)"
+
+if [[ -z "$summary" || "$summary" == "null" ]]; then
+  exit 0
+fi
+
+tmp="$(mktemp "${STATE}.tmp.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+
+if [[ -f "$STATE" ]]; then
+  jq --argjson s "$summary" '
+    .today = {
+      tokens:  ($s.tokens  // 0),
+      cost_usd: ($s.cost   // 0),
+      models:  ($s.models  // [])
+    }
+  ' "$STATE" > "$tmp"
+else
+  jq -n --argjson s "$summary" '
+    {
+      schema: 1,
+      updated_at: 0,
+      source: "ccusage",
+      five_hour: { pct: null, resets_at: null },
+      seven_day: { pct: null, resets_at: null },
+      today: {
+        tokens:  ($s.tokens  // 0),
+        cost_usd: ($s.cost   // 0),
+        models:  ($s.models  // [])
+      },
+      session: {
+        id: "", model_id: "", model_name: "",
+        cost_usd: 0, lines_added: 0, lines_removed: 0,
+        input_tokens: 0, output_tokens: 0, context_pct: null
+      }
+    }
+  ' > "$tmp"
+fi
+
+mv -f "$tmp" "$STATE"
+trap - EXIT

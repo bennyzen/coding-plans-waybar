@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Claude Code statusLine emitter. Thin loader over coding_plans.statusline."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+for _candidate in (
+    Path.home() / ".local/share/coding-plans-waybar/lib",
+    Path(__file__).resolve().parent.parent / "lib",
+):
+    if (_candidate / "coding_plans" / "__init__.py").is_file():
+        sys.path.insert(0, str(_candidate))
+        break
+
+from coding_plans.statusline import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
