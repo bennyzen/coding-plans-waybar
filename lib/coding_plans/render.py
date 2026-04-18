@@ -57,17 +57,29 @@ def _brand_name(plan: PlanStatus) -> str:
 
 
 def render_label(plan: PlanStatus, display_cfg: dict[str, Any]) -> str:
-    fmt = display_cfg.get("bar_format", "{brand} {short_pct}%·{weekly_pct}%")
+    """Format the per-provider bar label using the configured ``bar_format``.
+
+    Placeholders that aren't recognised are treated as empty strings rather
+    than raising (helps when a user's config was seeded against an older
+    version of DEFAULT_CONFIG and still references dropped placeholders like
+    ``{icon}``)."""
+    fmt = display_cfg.get("bar_format") or "{short_pct}%·{weekly_pct}%"
+    known = {
+        "brand":        _brand_name(plan),
+        "short_pct":    fmt_pct(plan.short_pct),
+        "weekly_pct":   fmt_pct(plan.weekly_pct),
+        "plan_tier":    (plan.plan_tier or "").upper(),
+        "display_name": plan.display_name,
+    }
+
+    class _Silent(dict):
+        def __missing__(self, key: str) -> str:  # unknown placeholders stripped
+            return ""
+
     try:
-        return fmt.format(
-            brand=_brand_name(plan),
-            short_pct=fmt_pct(plan.short_pct),
-            weekly_pct=fmt_pct(plan.weekly_pct),
-            plan_tier=(plan.plan_tier or "").upper(),
-            display_name=plan.display_name,
-        )
-    except (KeyError, IndexError):
-        return f"{_brand_name(plan)} {fmt_pct(plan.short_pct)}%·{fmt_pct(plan.weekly_pct)}%"
+        return fmt.format_map(_Silent(known))
+    except (IndexError, ValueError):
+        return f"{fmt_pct(plan.short_pct)}%·{fmt_pct(plan.weekly_pct)}%"
 
 
 def _dim(palette: dict[str, str], s: str) -> str:

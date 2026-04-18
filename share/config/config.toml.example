@@ -1,51 +1,63 @@
 # ~/.config/coding-plans/config.toml
 #
-# Every key below is consumed by at least one script. Anything omitted
-# falls back to DEFAULT_CONFIG in lib/coding_plans/config.py.
+# Toggle providers on/off here — the installer regenerates Waybar's module
+# blocks + CSS on every run, so a fresh install or a re-install is the only
+# action you ever take.
+
+[providers.claude]
+enabled = true
+
+[providers.zai]
+enabled = true
+# api_key_file = "~/.config/coding-plans/zai-key"   # default — chmod 600
+
+# ─── Styling ────────────────────────────────────────────────────────────
+# These values are emitted verbatim into the generated
+# ~/.config/waybar/style.css block. Per-provider overrides go under
+# [providers.<id>.style]; anything unset falls back to [style].
+
+[style]
+font_family    = ""              # empty → inherit from the Waybar bar
+font_size      = "11px"
+font_weight    = ""
+letter_spacing = "0.02em"
+padding        = "0 8px 0 23px"
+margin         = "0 3px"
+icon_size      = "13px"
+icon_position  = "6px center"    # x y — passed to CSS background-position
+border_radius  = ""              # e.g. "10px" for a pill shape
+color          = "@foreground"   # base text colour (uses the theme's var)
+# Per-state appearance.
+fresh_opacity     = 0.92
+stale_opacity     = 0.4
+empty_opacity     = 0.28
+critical_color    = "#c9a227"
+critical_weight   = "700"
+exhausted_color   = "#d24646"
+exhausted_weight  = "700"
+
+# Example per-provider override — bump Claude's icon slightly:
+# [providers.claude.style]
+# icon_size = "15px"
+
+# ─── Rest is behaviour, not look ────────────────────────────────────────
 
 [display]
-# Per-provider bar segment. Placeholders:
-#   {brand}        — the provider's display_name, Pango-wrapped in its
-#                    brand colour when the provider sets icon_color
-#                    (e.g. Claude's orange).
-#   {display_name} — plain text, no colour.
-#   {short_pct}, {weekly_pct}, {plan_tier}
-# Each enabled provider is rendered with this format and joined with `join`.
-bar_format = "{brand} {short_pct}%·{weekly_pct}%"
-join       = "  "
-# Emit a segment for providers whose PlanStatus has no percentages yet.
+# Per-provider bar segment (Pango markup). Placeholders:
+#   {short_pct} {weekly_pct} {plan_tier} {display_name}
+bar_format           = "{short_pct}%·{weekly_pct}%"
+join                 = "  "
 show_empty_providers = false
 
 [behavior]
-# After this long with no update, a provider's segment is tagged stale.
 stale_after_seconds = 300
 
 [thresholds]
-# Worst-wins aggregation across providers:
-#   >= exhausted → CSS class "exhausted"
-#   >= critical  → CSS class "critical"
 critical  = 80
 exhausted = 100
 
 [tooltip]
 show_progress_bars = true
-show_today         = true      # Claude provider only (ccusage backfill)
+show_today         = true
 show_updated_ago   = true
 bar_width          = 10
-
-[providers.claude]
-enabled = true
-# State file written by coding-plans-statusline (every Claude Code turn) and
-# coding-plans-today (every 5 minutes from the ccusage backfill timer).
-state_path      = "~/.cache/coding-plans/claude.json"
-# If you already had a statusLine.command in ~/.claude/settings.json, the
-# installer records it here and coding-plans-statusline chains to it.
-chained_command = ""
-
-[providers.zai]
-enabled       = true
-api_key_file  = "~/.config/coding-plans/zai-key"
-endpoint      = "https://api.z.ai/api/monitor/usage/quota/limit"
-# HTTP timeout in seconds. The widget ticks every 15s; we don't want one
-# stuck fetch to block rendering.
-timeout       = 6

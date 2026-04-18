@@ -178,18 +178,19 @@ run "find '$LIB_DIR/coding_plans' -type d -name __pycache__ -exec rm -rf {} + 2>
 ok "package in place"
 
 step "copy share assets → $SHARE_DIR"
-run "mkdir -p '$SHARE_DIR/waybar' '$SHARE_DIR/systemd' '$SHARE_DIR/config'"
-run "install -m 0644 '$SRC/share/waybar/module.jsonc' '$SHARE_DIR/waybar/module.jsonc'"
-run "install -m 0644 '$SRC/share/waybar/style.css'   '$SHARE_DIR/waybar/style.css'"
+# waybar/ holds the generator's output; systemd/config/ ship static defaults.
+run "mkdir -p '$SHARE_DIR/waybar' '$SHARE_DIR/systemd' '$SHARE_DIR/config' '$SHARE_DIR/icons'"
 run "install -m 0644 '$SRC/share/systemd/coding-plans-today.service' '$SHARE_DIR/systemd/coding-plans-today.service'"
 run "install -m 0644 '$SRC/share/systemd/coding-plans-today.timer'   '$SHARE_DIR/systemd/coding-plans-today.timer'"
 run "install -m 0644 '$SRC/share/config/config.toml.example' '$SHARE_DIR/config/config.toml.example'"
-run "install -m 0755 '$SRC/share/_patch_waybar.py' '$SHARE_DIR/_patch_waybar.py'"
-run "install -m 0755 '$SRC/share/_patch_style.py'  '$SHARE_DIR/_patch_style.py'"
-run "install -m 0755 '$SRC/share/_patch_toml.py'   '$SHARE_DIR/_patch_toml.py'"
-# Per-provider brand SVGs live inside the Python package at
-# lib/coding_plans/providers/icons/ — they ride along with the cp -R of
-# the lib tree a few lines above. Nothing extra to do here.
+run "install -m 0755 '$SRC/share/_patch_waybar.py'     '$SHARE_DIR/_patch_waybar.py'"
+run "install -m 0755 '$SRC/share/_patch_style.py'      '$SHARE_DIR/_patch_style.py'"
+run "install -m 0755 '$SRC/share/_patch_toml.py'       '$SHARE_DIR/_patch_toml.py'"
+run "install -m 0755 '$SRC/share/_generate_waybar.py'  '$SHARE_DIR/_generate_waybar.py'"
+# Flat copy of per-provider brand SVGs for the generated CSS to url() at.
+# (The popup reads its copies from the Python package at
+# lib/coding_plans/providers/icons/, which was already copied by cp -R above.)
+run "cp -f '$SRC'/lib/coding_plans/providers/icons/*.svg '$SHARE_DIR/icons/' 2>/dev/null || true"
 
 # Substitute LAYER_SHELL_PRELOAD placeholder in the generated waybar module.
 # If the library wasn't found, the env prefix collapses to an empty string
@@ -264,26 +265,43 @@ if [[ -z "$WAYBAR_CFG" ]]; then
   done
 fi
 
-step "patch waybar config"
-if [[ -z "$WAYBAR_CFG" || ! -f "$WAYBAR_CFG" ]]; then
-  warn "no waybar config found under $WAYBAR_DIR (tried config.jsonc, config.json, config). Add this block manually to any config that waybar loads:"
-  printf '%s\n' "$C_DIM"
-  # Print from the source tree so --dry-run works even before assets copy.
-  cat "$SRC/share/waybar/module.jsonc"
-  printf '%s\n' "$C_RESET"
+# Generate the per-provider module + style blocks from config.toml.
+step "generate Waybar module + style blocks from config.toml"
+if [[ $DRY_RUN -eq 1 ]]; then
+  printf '%s[dry-run]%s would run _generate_waybar.py to build module + style snippets\n' "$C_DIM" "$C_RESET"
 else
-  run "cp '$WAYBAR_CFG' '$WAYBAR_CFG.bak.coding-plans'"
-  run "python3 '$SHARE_DIR/_patch_waybar.py' install '$WAYBAR_CFG' '$SHARE_DIR/waybar/module.jsonc'"
-  ok "custom/coding-plans added to $WAYBAR_CFG (backup at $WAYBAR_CFG.bak.coding-plans)"
-fi
+  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --layer-shell-preload "$preload_env" 2>/dev/null)"
+  GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>/dev/null)"
+  if [[ -z "$GEN_MODULES" ]]; then
+    warn "no enabled providers in $CFG_DIR/config.toml — skipping Waybar patch"
+  else
+    count=$(echo "$GEN_MODULES" | grep -c '"custom/coding-plans-' || true)
+    ok "generated $count provider module(s)"
+    # Persist the generated snippets so _patch_waybar.py / _patch_style.py can install them.
+    printf '%s\n' "$GEN_MODULES" > "$SHARE_DIR/waybar/module.jsonc"
+    printf '%s\n' "$GEN_STYLE"   > "$SHARE_DIR/waybar/style.css"
 
-step "patch $WAYBAR_DIR/style.css"
-if [[ -f "$WAYBAR_DIR/style.css" ]]; then
-  run "cp '$WAYBAR_DIR/style.css' '$WAYBAR_DIR/style.css.bak.coding-plans'"
-  run "python3 '$SHARE_DIR/_patch_style.py' install '$WAYBAR_DIR/style.css' '$SHARE_DIR/waybar/style.css'"
-  ok "styling appended (backup at style.css.bak.coding-plans)"
-else
-  warn "no style.css to patch — theming skipped"
+    step "patch waybar config"
+    if [[ -z "$WAYBAR_CFG" || ! -f "$WAYBAR_CFG" ]]; then
+      warn "no waybar config found under $WAYBAR_DIR — add these blocks manually:"
+      printf '%s\n' "$C_DIM"
+      cat "$SHARE_DIR/waybar/module.jsonc"
+      printf '%s\n' "$C_RESET"
+    else
+      cp "$WAYBAR_CFG" "$WAYBAR_CFG.bak.coding-plans"
+      python3 "$SHARE_DIR/_patch_waybar.py" install "$WAYBAR_CFG" "$SHARE_DIR/waybar/module.jsonc"
+      ok "per-provider modules added to $WAYBAR_CFG (backup at $WAYBAR_CFG.bak.coding-plans)"
+    fi
+
+    step "patch $WAYBAR_DIR/style.css"
+    if [[ -f "$WAYBAR_DIR/style.css" ]]; then
+      cp "$WAYBAR_DIR/style.css" "$WAYBAR_DIR/style.css.bak.coding-plans"
+      python3 "$SHARE_DIR/_patch_style.py" install "$WAYBAR_DIR/style.css" "$SHARE_DIR/waybar/style.css"
+      ok "styling appended (backup at style.css.bak.coding-plans)"
+    else
+      warn "no style.css to patch — theming skipped"
+    fi
+  fi
 fi
 
 # ───────── systemd user timer (optional) ─────────────────────────────────

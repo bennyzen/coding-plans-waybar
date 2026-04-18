@@ -14,7 +14,7 @@ from .paths import CONFIG_PATH
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "display": {
-        "bar_format": "{brand} {short_pct}%·{weekly_pct}%",
+        "bar_format": "{short_pct}%·{weekly_pct}%",
         "join": "  ",
         "show_empty_providers": False,
     },
@@ -30,6 +30,28 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "show_today": True,
         "show_updated_ago": True,
         "bar_width": 10,
+    },
+    # Default module styling. Every value here is a CSS fragment emitted by
+    # the installer into each ``#custom-coding-plans-<id>`` rule. Override
+    # per-provider via ``[providers.<id>.style]``.
+    "style": {
+        "font_family":      "",           # empty → inherit from Waybar bar
+        "font_size":        "11px",
+        "font_weight":      "",
+        "letter_spacing":   "0.02em",
+        "padding":          "0 8px 0 23px",
+        "margin":           "0 3px",
+        "icon_size":        "13px",
+        "icon_position":    "6px center",
+        "border_radius":    "",           # e.g. "10px" for pill, "" for square
+        "color":            "@foreground",
+        "fresh_opacity":    0.92,
+        "stale_opacity":    0.4,
+        "empty_opacity":    0.28,
+        "critical_color":   "#c9a227",
+        "critical_weight":  "700",
+        "exhausted_color":  "#d24646",
+        "exhausted_weight": "700",
     },
     # Providers are populated by the user's config file. Defaults are empty —
     # a provider has to be explicitly enabled to render.

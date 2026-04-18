@@ -9,12 +9,12 @@ from contextlib import redirect_stdout
 from unittest.mock import patch
 
 
-def _run_bar():
+def _run_bar(argv=None):
     import coding_plans.bar as mod
     importlib.reload(mod)
     out = io.StringIO()
     with redirect_stdout(out):
-        mod.main()
+        mod.main([] if argv is None else argv)
     return json.loads(out.getvalue())
 
 
