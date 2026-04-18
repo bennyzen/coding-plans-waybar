@@ -29,12 +29,19 @@ Unit mapping (observed; no public docs):
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 from .base import PlanStatus
+
+# In-process cache keyed by endpoint — keeps the popup from hammering the API
+# when it refreshes every few seconds. The bar itself runs once per 15 s, so
+# this matters most for the open-popover case.
+_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_CACHE_TTL_SECONDS = 10.0
 
 PROVIDER_ID = "zai"
 DISPLAY_NAME = "Z.AI"
@@ -52,6 +59,9 @@ def _read_key(key_file: str) -> str | None:
 
 
 def _fetch_quota(endpoint: str, key: str, timeout: float) -> dict[str, Any]:
+    cached = _cache.get(endpoint)
+    if cached and (time.monotonic() - cached[0]) < _CACHE_TTL_SECONDS:
+        return cached[1]
     req = urllib.request.Request(
         endpoint,
         headers={
@@ -62,7 +72,9 @@ def _fetch_quota(endpoint: str, key: str, timeout: float) -> dict[str, Any]:
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read().decode("utf-8")
-    return json.loads(body)
+    payload = json.loads(body)
+    _cache[endpoint] = (time.monotonic(), payload)
+    return payload
 
 
 def _limits_by(limits: list[dict[str, Any]], ltype: str, unit: int | None = None) -> dict[str, Any] | None:
@@ -207,3 +219,20 @@ def tooltip_extras(
         f"     <b><span foreground='{text}'>{current}/{total}</span></b>  "
         f"<span foreground='{muted}'>({pct}%)</span>"
     ]
+
+
+def build_popup_rows(
+    plan: "PlanStatus", cfg: dict[str, Any], palette: dict[str, str]
+) -> list[Any]:
+    """Return the GTK4 widgets the popup should render AFTER the shared
+    5H/WEEKLY rows. For Z.AI: a single MCP-quota row.
+
+    Imported lazily — the bar renderer must not pull in PyGObject.
+    """
+    from ..popup import McpQuotaRow  # noqa: WPS433 — intentional
+
+    del cfg, palette
+    mcp = (plan.details or {}).get("mcp") or {}
+    if not mcp:
+        return []
+    return [McpQuotaRow()]

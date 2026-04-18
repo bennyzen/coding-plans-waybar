@@ -3,14 +3,17 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
+_override = os.environ.get("CODING_PLANS_LIB_DIR")
 for _candidate in (
+    Path(_override) if _override else None,
     Path.home() / ".local/share/coding-plans-waybar/lib",
     Path(__file__).resolve().parent.parent / "lib",
 ):
-    if (_candidate / "coding_plans" / "__init__.py").is_file():
+    if _candidate and (_candidate / "coding_plans" / "__init__.py").is_file():
         sys.path.insert(0, str(_candidate))
         break
 

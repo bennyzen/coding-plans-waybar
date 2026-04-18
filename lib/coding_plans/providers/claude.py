@@ -201,6 +201,22 @@ def extract_session(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_popup_rows(
+    plan: "PlanStatus", cfg: dict[str, Any], palette: dict[str, str]
+) -> list[Any]:
+    """Return the GTK4 widgets the popup should render AFTER the shared
+    5H/WEEKLY rows. For Claude: a TodayRow + a SessionRow, both populated
+    from ``plan.details`` (the full state-file slice).
+
+    Imported lazily inside the function body — the statusline and bar
+    modules also import from this file and must not pull in PyGObject.
+    """
+    from ..popup import SessionRow, TodayRow  # noqa: WPS433 — intentional
+
+    del cfg, palette  # shared styling is applied via CSS on the widgets.
+    return [TodayRow(), SessionRow()]
+
+
 def record_turn(raw: str) -> None:
     """Parse one Claude Code statusline-JSON payload and merge it into
     ``~/.cache/coding-plans/state.json`` under ``providers.claude``.
