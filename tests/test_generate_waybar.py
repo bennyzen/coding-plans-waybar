@@ -72,3 +72,40 @@ def test_style_per_provider_bg_overrides_global(tmp_path):
     assert f'url("{disc}")' in css
     # 13 + 2*3 = 19.
     assert "background-size: 13px 13px, 19px 19px;" in css
+
+
+def test_module_uses_absolute_bin_paths():
+    """Waybar inherits PATH from its launcher, which often lacks ~/.local/bin.
+    Both exec and on-click must spell out the bin dir or the modules silently
+    fail to render."""
+    gen = _load()
+    cfg = {"providers": {"claude": {"enabled": True}, "zai": {"enabled": True}}}
+    out = gen.generate_modules(cfg, preload="", bin_dir="/opt/cp/bin")
+    assert '"exec": "/opt/cp/bin/coding-plans-bar --provider claude"' in out
+    assert '"exec": "/opt/cp/bin/coding-plans-bar --provider zai"' in out
+    assert "/opt/cp/bin/coding-plans-popup" in out
+    # No bare invocations left over.
+    assert '"exec": "coding-plans-bar' not in out
+    assert " coding-plans-popup" not in out  # space before = bare invocation
+
+
+def test_module_strips_trailing_slash_on_bin_dir():
+    gen = _load()
+    cfg = {"providers": {"zai": {"enabled": True}}}
+    out = gen.generate_modules(cfg, preload="", bin_dir="/opt/cp/bin/")
+    assert "/opt/cp/bin/coding-plans-bar" in out
+    assert "/opt/cp/bin//coding-plans-bar" not in out
+
+
+def test_module_cli_rejects_missing_bin_dir(tmp_path, capsys, monkeypatch):
+    """The 'module' subcommand must refuse to emit unqualified commands."""
+    gen = _load()
+    monkeypatch.setenv("CFG_DIR_EXPORT", str(tmp_path))
+    (tmp_path / "config.toml").write_text('[providers.zai]\nenabled = true\n')
+    icons = tmp_path / "icons"
+    icons.mkdir()
+    import pytest
+    with pytest.raises(SystemExit) as exc:
+        gen.main(["module", "--icons-dir", str(icons)])
+    assert exc.value.code != 0
+    assert "--bin-dir" in capsys.readouterr().err

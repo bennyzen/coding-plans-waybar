@@ -17,8 +17,13 @@ the only step the user ever takes.
 
 Usage::
 
-    _generate_waybar.py module --icons-dir DIR --layer-shell-preload PRE
+    _generate_waybar.py module --icons-dir DIR --bin-dir BIN --layer-shell-preload PRE
     _generate_waybar.py style  --icons-dir DIR
+
+The emitted ``exec`` / ``on-click`` commands use ``{bin_dir}/coding-plans-bar``
++ ``{bin_dir}/coding-plans-popup`` rather than relying on PATH — Waybar
+inherits PATH from whatever launched it (often a minimal session manager
+without ``~/.local/bin``), so unqualified names silently fail.
 """
 
 from __future__ import annotations
@@ -108,12 +113,12 @@ def _icon_filename(pid: str, icons_dir: Path) -> str:
 
 MODULE_TEMPLATE = '''\
 "custom/coding-plans-{ID}": {{
-  "exec": "coding-plans-bar --provider {ID}",
+  "exec": "{BIN}/coding-plans-bar --provider {ID}",
   "interval": 15,
   "return-type": "json",
   "format": "{{}}",
   "tooltip": true,
-  "on-click": "setsid -f env {PRELOAD} coding-plans-popup"
+  "on-click": "setsid -f env {PRELOAD} {BIN}/coding-plans-popup"
 }}'''
 
 
@@ -245,11 +250,14 @@ def _render_style_for(pid: str, cfg: dict[str, Any], icons_dir: Path) -> str:
 #custom-coding-plans-{pid}.empty     {{ color: {s['color']}; opacity: {s['empty_opacity']}; }}"""
 
 
-def generate_modules(cfg: dict, preload: str) -> str:
+def generate_modules(cfg: dict, preload: str, bin_dir: str) -> str:
     ids = _enabled_providers(cfg)
     if not ids:
         return ""
-    return ",\n".join(MODULE_TEMPLATE.format(ID=pid, PRELOAD=preload) for pid in ids)
+    bin_dir = bin_dir.rstrip("/")
+    return ",\n".join(
+        MODULE_TEMPLATE.format(ID=pid, PRELOAD=preload, BIN=bin_dir) for pid in ids
+    )
 
 
 def generate_style(cfg: dict, icons_dir: Path) -> str:
@@ -264,11 +272,16 @@ def main(argv: list[str]) -> int:
     p.add_argument("kind", choices=("module", "style"))
     p.add_argument("--icons-dir", required=True, type=Path)
     p.add_argument("--layer-shell-preload", default="")
+    p.add_argument("--bin-dir", default="",
+                   help="Absolute dir containing coding-plans-bar/popup. "
+                        "Required for 'module' — Waybar's PATH is unreliable.")
     args = p.parse_args(argv)
 
     cfg = _load_config()
     if args.kind == "module":
-        sys.stdout.write(generate_modules(cfg, args.layer_shell_preload))
+        if not args.bin_dir:
+            p.error("--bin-dir is required for the 'module' subcommand")
+        sys.stdout.write(generate_modules(cfg, args.layer_shell_preload, args.bin_dir))
     else:
         sys.stdout.write(generate_style(cfg, args.icons_dir))
     return 0

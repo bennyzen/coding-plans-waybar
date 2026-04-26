@@ -297,7 +297,7 @@ step "generate Waybar module + style blocks from config.toml"
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '%s[dry-run]%s would run _generate_waybar.py to build module + style snippets\n' "$C_DIM" "$C_RESET"
 else
-  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --layer-shell-preload "$preload_env" 2>/dev/null)"
+  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --bin-dir "$BIN_DIR" --layer-shell-preload "$preload_env" 2>/dev/null)"
   GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>/dev/null)"
   if [[ -z "$GEN_MODULES" ]]; then
     warn "no enabled providers in $CFG_DIR/config.toml — skipping Waybar patch"
