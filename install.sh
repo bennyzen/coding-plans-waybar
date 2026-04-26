@@ -200,7 +200,6 @@ if [[ -n "$LAYER_SHELL_LIB" ]]; then
 else
   preload_env=""
 fi
-run "sed -i 's|{{LAYER_SHELL_PRELOAD}}|$preload_env|' '$SHARE_DIR/waybar/module.jsonc'"
 ok "assets in place"
 
 # ───────── seed config ───────────────────────────────────────────────────
