@@ -106,7 +106,7 @@ icon_bg_color = "#ffffff"
 ├── lib/coding_plans/         — Python package
 │   └── providers/
 │       ├── <id>.py           — per-provider module (fetch + hooks)
-│       └── icons/<id>.svg    — per-provider brand SVG
+│       └── icons/             — per-provider brand SVGs (<id>.svg mono + <id>-color.svg baked; see PROVIDERS.md)
 ├── icons/                    — flat copy of provider SVGs + any generated disc-<color>.svg backdrops
 ├── _generate_waybar.py       — reads config.toml, emits module + style blocks
 ├── _patch_waybar.py          — installs/uninstalls guarded Waybar block
