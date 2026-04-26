@@ -6,7 +6,8 @@
 #
 # Fresh-install only. If you're coming from upstream `claude-usage-waybar`
 # run its `uninstall.sh` first — we deliberately don't automate that
-# migration (see PLAN.md decision #4).
+# migration: silently editing somebody's existing waybar entry is worse
+# than asking them to run one command.
 #
 # Idempotent: safe to re-run. Edits to external config files are guarded
 # by BEGIN/END marker comments so uninstall.sh can remove them cleanly.
