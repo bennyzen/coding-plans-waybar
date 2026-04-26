@@ -17,19 +17,22 @@ Every provider exposes a module-level object named `PROVIDER` that satisfies the
 class Provider(Protocol):
     id: str                     # slug used as the config section name ("claude", "zai")
     display_name: str           # shown in the bar label + popup header ("Claude")
-    icon_path: Path | None      # Path to the brand SVG — ships at providers/icons/<id>.svg.
-                                # The popup renders it natively. None = no brand icon.
-    icon_color: str | None      # Hex colour for the bar label text (e.g. Claude's #D97757).
-                                # None = inherits the active theme's foreground.
+    icon_path: Path | None      # Path to the brand SVG used by the popup (Gtk.Image).
+                                # Ships at providers/icons/<id>.svg. None = no popup icon.
+                                # The bar icon is loaded separately by CSS — see Icons.
+    icon_color: str | None      # Pango hex (e.g. Claude's #D97757). Tints the popup
+                                # brand mark when the SVG uses currentColor, and the
+                                # optional {brand} placeholder in bar_format. None =
+                                # theme foreground.
 
     def fetch(self, config: dict) -> PlanStatus: ...
 ```
 
 **Where each field shows up:**
 
-- **Bar label** — `display_name` rendered in `icon_color` (if set). Waybar's text is Pango, which can't embed SVGs, so the bar uses coloured text as the brand mark.
-- **Popup card** — `icon_path`'s SVG is rendered via `Gtk.Image` in the card header, tinted by the GTK theme when the SVG uses `fill="currentColor"` or hard-coded when it carries its own colour.
-- **Tooltip header** — `display_name` in monochrome (the tooltip is also Pango).
+- **Bar** — each enabled provider gets its own `custom/coding-plans-<id>` Waybar module. The icon comes from CSS `background-image` loading `share/icons/<id>-color.svg` (preferred) or `<id>.svg`; the label is `bar_format` from config (default `{short_pct}%·{weekly_pct}%`). `bar_format` also accepts `{brand}` — `display_name` tinted by `icon_color` via Pango — for users who want the brand name inline.
+- **Popup card** — `icon_path`'s SVG is rendered via `Gtk.Image` in the card header, tinted by `icon_color` when the SVG uses `fill="currentColor"`, otherwise the SVG's own colours win.
+- **Tooltip header** — `display_name` in monochrome (the tooltip is Pango).
 
 `fetch()` MUST NOT raise. Any error (missing credentials, API down, bad response) must return a `PlanStatus` with `status_class="stale"` and a short human-readable `error` string. The bar + popup treat `error` as a signal to render the stale tag; they don't surface the string itself in the bar label, but they print it in the tooltip and the popup card's error row.
 
@@ -117,7 +120,7 @@ class FooProvider:
 PROVIDER = FooProvider()
 ```
 
-Drop `foo.svg` at `lib/coding_plans/providers/icons/foo.svg` and you're done.
+Drop `foo.svg` at `lib/coding_plans/providers/icons/foo.svg` and `foo-color.svg` next to it — see [Icons](#icons) for why both. And you're done.
 
 And the config:
 
@@ -153,12 +156,16 @@ python3 -m venv --system-site-packages .pytest_venv
 
 ## Icons
 
-- Source: [lobehub.com/icons](https://lobehub.com/icons) — MIT-licensed SVGs for every major AI provider. Grab the mono form (`{id}.svg`, uses `currentColor`) and the color form (`{id}-color.svg`, brand palette baked in) and ship whichever fits the visual you want in the popup card.
-- Put the SVG at `lib/coding_plans/providers/icons/<id>.svg` (or `<id>-color.svg` — the filename just has to match what `icon_path` points at).
-- `icon_color` drives the bar label colour only. The popup reads the SVG directly.
+The popup and the bar use SVGs differently, so providers ship two files:
+
+- `lib/coding_plans/providers/icons/<id>.svg` — mono, `fill="currentColor"`. The popup tints it natively via `icon_color`; theme-aware brands (Z.AI) use just this.
+- `lib/coding_plans/providers/icons/<id>-color.svg` — brand palette baked in. **Required for the bar icon** — Waybar loads it via CSS `background-image: url(...)`, which can't reach `currentColor` (it'd resolve to black inside the SVG and render invisible). The install-time generator prefers `<id>-color.svg` over `<id>.svg`.
+
+Source: [lobehub.com/icons](https://lobehub.com/icons), MIT. Most providers come in both forms; if not, bake your own — copy the mono SVG and substitute `fill="currentColor"` (e.g. `fill="#ffffff"` on dark themes — see `zai-color.svg` for a worked example).
+
+`icon_color` doesn't drive the bar icon (the SVG file does). It tints the popup brand mark and feeds the optional `{brand}` placeholder in `bar_format`.
 
 ## Not supported in v1
 
 - Per-provider bar segments with a different `bar_format`. v1 applies one global format to every provider's segment, with the provider's `{brand}`/`{display_name}`/`{short_pct}`/`{weekly_pct}`/`{plan_tier}` substituted in.
 - Providers that refresh their own rendering asynchronously. The bar polls at Waybar's configured interval (default 15s); the popup polls at 1s. Providers must be safe to `fetch()` at either cadence.
-- **SVG icons in the bar label** — Waybar's label is Pango text, which can't embed SVGs. The brand mark in the bar is `display_name` tinted by `icon_color`; the SVG shows in the popup and tooltip header. If you need pictorial icons in the bar, fork into a multi-module layout (one `custom/coding-plans-<id>` per provider, with CSS `background-image: url(...)`).

@@ -55,12 +55,14 @@ class Provider(Protocol):
 
     id: str
     display_name: str
-    # Path to the provider's brand SVG (co-located at providers/icons/<id>.svg).
-    # The bar label uses ``display_name`` (Pango in Waybar can't inline SVGs);
-    # the popup renders the SVG directly. Optional: None means no brand icon.
+    # Path to the provider's brand SVG used by the popup (Gtk.Image), co-located
+    # at providers/icons/<id>.svg. The bar loads its icon separately via CSS
+    # background-image from share/icons/<id>-color.svg (or <id>.svg) — see
+    # PROVIDERS.md "Icons". Optional: None means no popup icon.
     icon_path: "Path | None"
-    # Pango foreground hex when the SVG should be tinted (e.g. Claude's
-    # brand orange). None = render with the active theme's text colour.
+    # Pango foreground hex (e.g. Claude's brand orange). Tints the popup brand
+    # mark when the SVG uses fill="currentColor", and the optional {brand}
+    # placeholder in bar_format. None = active theme's text colour.
     icon_color: str | None
 
     def fetch(self, config: dict[str, Any]) -> PlanStatus:
