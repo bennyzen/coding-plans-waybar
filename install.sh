@@ -252,16 +252,44 @@ ok "statusLine.command → $new_cmd"
 # ───────── patch waybar config ───────────────────────────────────────────
 # Waybar's default config lives at ~/.config/waybar/config.jsonc, but Omarchy
 # and many ML4W-style setups use a bare ~/.config/waybar/config (no ext) or
-# a per-theme file under themes/<name>/config. Honour $WAYBAR_CONFIG if set,
-# otherwise probe in order.
-WAYBAR_CFG="${WAYBAR_CONFIG:-}"
-if [[ -z "$WAYBAR_CFG" ]]; then
+# a per-theme file under themes/<name>/config. Order of precedence:
+#   1. $WAYBAR_CONFIG / $WAYBAR_STYLE env overrides (explicit user choice)
+#   2. -c / -s args of the *running* waybar (most reliable signal)
+#   3. Static probes under $WAYBAR_DIR (fresh installs / waybar not running)
+DISCOVERED_CFG=""
+DISCOVERED_STYLE=""
+running_cmd="$(pgrep -axa waybar 2>/dev/null | head -1 || true)"
+if [[ -n "$running_cmd" ]]; then
+  # read -ra avoids glob expansion that plain `for tok in $cmd` would do.
+  read -ra _waybar_args <<<"$running_cmd"
+  prev=""
+  for tok in "${_waybar_args[@]}"; do
+    case "$prev" in
+      -c|--config) DISCOVERED_CFG="$tok" ;;
+      -s|--style)  DISCOVERED_STYLE="$tok" ;;
+    esac
+    case "$tok" in
+      --config=*) DISCOVERED_CFG="${tok#--config=}" ;;
+      --style=*)  DISCOVERED_STYLE="${tok#--style=}" ;;
+    esac
+    prev="$tok"
+  done
+fi
+
+WAYBAR_CFG="${WAYBAR_CONFIG:-$DISCOVERED_CFG}"
+if [[ -z "$WAYBAR_CFG" || ! -f "$WAYBAR_CFG" ]]; then
+  WAYBAR_CFG=""
   for cand in "$WAYBAR_DIR/config.jsonc" "$WAYBAR_DIR/config.json" "$WAYBAR_DIR/config"; do
     if [[ -f "$cand" ]]; then
       WAYBAR_CFG="$cand"
       break
     fi
   done
+fi
+
+WAYBAR_STYLE_PATH="${WAYBAR_STYLE:-$DISCOVERED_STYLE}"
+if [[ -z "$WAYBAR_STYLE_PATH" || ! -f "$WAYBAR_STYLE_PATH" ]]; then
+  WAYBAR_STYLE_PATH="$WAYBAR_DIR/style.css"
 fi
 
 # Generate the per-provider module + style blocks from config.toml.
@@ -292,11 +320,11 @@ else
       ok "per-provider modules added to $WAYBAR_CFG (backup at $WAYBAR_CFG.bak.coding-plans)"
     fi
 
-    step "patch $WAYBAR_DIR/style.css"
-    if [[ -f "$WAYBAR_DIR/style.css" ]]; then
-      cp "$WAYBAR_DIR/style.css" "$WAYBAR_DIR/style.css.bak.coding-plans"
-      python3 "$SHARE_DIR/_patch_style.py" install "$WAYBAR_DIR/style.css" "$SHARE_DIR/waybar/style.css"
-      ok "styling appended (backup at style.css.bak.coding-plans)"
+    step "patch $WAYBAR_STYLE_PATH"
+    if [[ -f "$WAYBAR_STYLE_PATH" ]]; then
+      cp "$WAYBAR_STYLE_PATH" "$WAYBAR_STYLE_PATH.bak.coding-plans"
+      python3 "$SHARE_DIR/_patch_style.py" install "$WAYBAR_STYLE_PATH" "$SHARE_DIR/waybar/style.css"
+      ok "styling appended (backup at $WAYBAR_STYLE_PATH.bak.coding-plans)"
     else
       warn "no style.css to patch — theming skipped"
     fi
