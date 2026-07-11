@@ -45,6 +45,15 @@ markers in whatever comment style the file uses (`//`, `#`, `/* */`).
    waybar entry. Silently editing somebody's bar is worse than telling them
    to run `uninstall.sh` from the upstream project.
 
+5. **StatusLine wrapper recursion.** If the pre-existing
+   `statusLine.command` is a wrapper that calls `coding-plans-statusline`
+   internally (e.g. `claude-context-statusline`), chaining it creates an
+   infinite loop: `coding-plans-statusline → wrapper → coding-plans-statusline → …`
+   that pushes load to 37+ within minutes. The installer now greps the
+   existing command's resolved file for `coding-plans-statusline` /
+   `claude-usage-statusline` and skips chaining when found. If you touch
+   the chaining logic, preserve this guard.
+
 ## Override env vars install.sh honours
 
 `BIN_DIR` `SHARE_DIR` `CFG_DIR` `CACHE_DIR` `WAYBAR_DIR` `WAYBAR_CONFIG`

@@ -15,9 +15,11 @@ then provider-specific extras via ``providers.<id>.build_popup_rows()``.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -70,10 +72,27 @@ from .formatters import (  # noqa: E402
 )
 from .palette import BAKED_PALETTE, load_palette  # noqa: E402,F401
 from .paths import CONFIG_PATH  # noqa: E402
-from .providers import load_enabled  # noqa: E402
+from .providers import load_enabled, safe_fetch  # noqa: E402
 from .providers.base import PlanStatus  # noqa: E402
 
-PIDFILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "coding-plans-popup.pid"
+
+def _pidfile_path() -> Path:
+    """Where to put the single-instance PID file.
+
+    Preferred: ``$XDG_RUNTIME_DIR`` (``/run/user/$UID``, 0700 — only we can
+    write there). Fallback: an uid-suffixed name under the system temp dir so
+    the path is not guessable across users. The fallback is only exercised
+    when ``XDG_RUNTIME_DIR`` is unset (broken session); the uid suffix +
+    ``O_NOFOLLOW`` write below prevent both symlink redirection and PID
+    injection on the world-writable fallback path.
+    """
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime:
+        return Path(runtime) / "coding-plans-popup.pid"
+    return Path(tempfile.gettempdir()) / f"coding-plans-popup-{os.getuid()}.pid"
+
+
+PIDFILE = _pidfile_path()
 
 
 # ─── CSS ─────────────────────────────────────────────────────────────────
@@ -319,6 +338,45 @@ def try_layer_shell(window: Gtk.Window) -> bool:
     return True
 
 
+def _pid_belongs_to_us(pid: int) -> bool:
+    """Verify ``pid`` is owned by the current user before we signal it.
+
+    Guards against an attacker injecting an arbitrary PID into the PID file
+    on the ``/tmp`` fallback path. Reads ``/proc/<pid>/status`` (Linux-only,
+    same platform requirement as Waybar itself).
+    """
+    try:
+        status = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for line in status.splitlines():
+        if line.startswith("Uid:"):
+            # "Uid:\t<real>\t<effective>\t<saved>\t<fs>"
+            parts = line.split()
+            return len(parts) >= 2 and parts[1] == str(os.getuid())
+    return False
+
+
+def _write_pidfile(pidfile: Path, pid: int) -> None:
+    """Write our PID to ``pidfile``.
+
+    Uses ``O_NOFOLLOW`` so an attacker can't pre-plant a symlink at a
+    predictable ``/tmp`` path and redirect our write to an arbitrary file.
+    On ``$XDG_RUNTIME_DIR`` the directory is 0700 so this is belt-and-
+    braces.
+    """
+    fd = os.open(
+        str(pidfile),
+        os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        os.ftruncate(fd, 0)
+        os.write(fd, f"{pid}\n".encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
 def toggle_existing() -> bool:
     if not PIDFILE.exists():
         return False
@@ -326,27 +384,17 @@ def toggle_existing() -> bool:
         pid = int(PIDFILE.read_text().strip())
     except (OSError, ValueError):
         return False
+    if not _pid_belongs_to_us(pid):
+        # PID file points at another user's process (or a dead PID whose
+        # /proc entry is gone). Don't signal an arbitrary PID; clean up.
+        PIDFILE.unlink(missing_ok=True)
+        return False
     try:
         os.kill(pid, signal.SIGTERM)
         return True
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         PIDFILE.unlink(missing_ok=True)
         return False
-
-
-# ─── Safe fetch (mirrors bar._safe_fetch) ─────────────────────────────────
-
-
-def _safe_fetch(provider: Any, cfg: dict[str, Any]) -> PlanStatus:
-    try:
-        return provider.fetch(cfg)
-    except Exception as exc:  # noqa: BLE001
-        return PlanStatus(
-            provider_id=provider.id,
-            display_name=provider.display_name,
-            status_class="stale",
-            error=f"fetch failed: {exc!r}",
-        )
 
 
 # ─── Classification helpers ───────────────────────────────────────────────
@@ -959,7 +1007,7 @@ class UsagePopup(Adw.Application):
         if not self.cards:
             return
         for card in self.cards:
-            plan = _safe_fetch(card.provider, self.cfg)
+            plan = safe_fetch(card.provider, self.cfg)
             card.update(plan, self.cfg, self.palette)
 
     def _shutdown(self) -> None:
@@ -993,8 +1041,7 @@ class UsagePopup(Adw.Application):
                     (
                         t
                         for t in ("alacritty", "kitty", "ghostty", "foot", "wezterm")
-                        if subprocess.run(["which", t], capture_output=True).returncode
-                        == 0
+                        if shutil.which(t) is not None
                     ),
                     None,
                 )
@@ -1029,7 +1076,7 @@ class UsagePopup(Adw.Application):
 def main() -> int:
     if toggle_existing():
         return 0
-    PIDFILE.write_text(str(os.getpid()))
+    _write_pidfile(PIDFILE, os.getpid())
 
     def cleanup(*_: object) -> None:
         try:

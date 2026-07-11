@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 from typing import Any
 
@@ -77,12 +78,15 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def load_config() -> dict[str, Any]:
+    # deepcopy on every branch: handing out the module-level DEFAULT_CONFIG
+    # directly would let a future caller's cfg[...] = ... corrupt the default
+    # for the process lifetime. The merge path already builds fresh dicts.
     if not CONFIG_PATH.exists():
-        return DEFAULT_CONFIG
+        return copy.deepcopy(DEFAULT_CONFIG)
     try:
         with CONFIG_PATH.open("rb") as fh:
             user = tomllib.load(fh)
     except (OSError, tomllib.TOMLDecodeError) as exc:
         print(f"coding-plans: config read failed, using defaults ({exc})", file=sys.stderr)
-        return DEFAULT_CONFIG
+        return copy.deepcopy(DEFAULT_CONFIG)
     return _deep_merge(DEFAULT_CONFIG, user)

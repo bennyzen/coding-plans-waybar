@@ -109,3 +109,17 @@ def test_module_cli_rejects_missing_bin_dir(tmp_path, capsys, monkeypatch):
         gen.main(["module", "--icons-dir", str(icons)])
     assert exc.value.code != 0
     assert "--bin-dir" in capsys.readouterr().err
+
+
+def test_default_style_matches_lib_default():
+    """The generator's DEFAULT_STYLE must mirror DEFAULT_CONFIG["style"].
+
+    The share script duplicates the dict because it runs from install.sh
+    without lib/ on sys.path (see comment in _generate_waybar.py). This
+    test locks the two together so a style knob added to one copy is not
+    silently forgotten in the other.
+    """
+    gen = _load()
+    from coding_plans.config import DEFAULT_CONFIG
+
+    assert gen.DEFAULT_STYLE == DEFAULT_CONFIG["style"]

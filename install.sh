@@ -231,24 +231,49 @@ else
   existing=""
 fi
 
-# If there's a pre-existing statusLine that isn't ours, stash it in config
-# so our statusline can chain to it (user sees their original text too).
-if [[ -n "$existing" && "$existing" != *"coding-plans-statusline"* && "$existing" != *"claude-usage-statusline"* ]]; then
-  warn "existing statusLine will be chained: $existing"
-  EXISTING_STATUSLINE="$existing" CFG_DIR_EXPORT="$CFG_DIR" run "python3 '$SRC/share/_patch_toml.py' set-chained"
-  ok "chained_command recorded in config.toml under [providers.claude]"
+# Detect whether the pre-existing statusLine is a wrapper that calls our
+# statusline internally (e.g. claude-context-statusline). If so, chaining
+# would create infinite recursion:
+#   coding-plans-statusline → wrapper → coding-plans-statusline → …
+# The wrapper is already the correct entry point — leave it alone.
+wrapper_calls_us=false
+if [[ -n "$existing" ]]; then
+  for word in $existing; do
+    resolved=""
+    [[ -f "$word" ]] && resolved="$word" || true
+    if [[ -z "$resolved" ]]; then
+      command -v "$word" >/dev/null 2>&1 && resolved="$(command -v "$word")" || true
+    fi
+    if [[ -n "$resolved" && -f "$resolved" ]] \
+       && grep -qE 'coding-plans-statusline|claude-usage-statusline' "$resolved" 2>/dev/null; then
+      wrapper_calls_us=true
+      break
+    fi
+  done
 fi
 
-new_cmd="$BIN_DIR/coding-plans-statusline"
-if [[ -f "$CLAUDE_SETTINGS" ]]; then
-  run "jq --arg cmd '$new_cmd' '
-    .statusLine = { type: \"command\", command: \$cmd }
-  ' '$CLAUDE_SETTINGS' > '$CLAUDE_SETTINGS.tmp' && mv '$CLAUDE_SETTINGS.tmp' '$CLAUDE_SETTINGS'"
+if $wrapper_calls_us; then
+  ok "existing statusLine ($existing) already wraps coding-plans-statusline — left as entry point (no chain)"
 else
-  run "mkdir -p '$(dirname "$CLAUDE_SETTINGS")'"
-  run "jq -n --arg cmd '$new_cmd' '{ statusLine: { type: \"command\", command: \$cmd } }' > '$CLAUDE_SETTINGS'"
+  # If there's a pre-existing statusLine that isn't ours, stash it in config
+  # so our statusline can chain to it (user sees their original text too).
+  if [[ -n "$existing" && "$existing" != *"coding-plans-statusline"* && "$existing" != *"claude-usage-statusline"* ]]; then
+    warn "existing statusLine will be chained: $existing"
+    EXISTING_STATUSLINE="$existing" CFG_DIR_EXPORT="$CFG_DIR" run "python3 '$SRC/share/_patch_toml.py' set-chained"
+    ok "chained_command recorded in config.toml under [providers.claude]"
+  fi
+
+  new_cmd="$BIN_DIR/coding-plans-statusline"
+  if [[ -f "$CLAUDE_SETTINGS" ]]; then
+    run "jq --arg cmd '$new_cmd' '
+      .statusLine = { type: \"command\", command: \$cmd }
+    ' '$CLAUDE_SETTINGS' > '$CLAUDE_SETTINGS.tmp' && mv '$CLAUDE_SETTINGS.tmp' '$CLAUDE_SETTINGS'"
+  else
+    run "mkdir -p '$(dirname "$CLAUDE_SETTINGS")'"
+    run "jq -n --arg cmd '$new_cmd' '{ statusLine: { type: \"command\", command: \$cmd } }' > '$CLAUDE_SETTINGS'"
+  fi
+  ok "statusLine.command → $new_cmd"
 fi
-ok "statusLine.command → $new_cmd"
 
 # ───────── patch waybar config ───────────────────────────────────────────
 # Waybar's default config lives at ~/.config/waybar/config.jsonc, but Omarchy
@@ -298,8 +323,29 @@ step "generate Waybar module + style blocks from config.toml"
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '%s[dry-run]%s would run _generate_waybar.py to build module + style snippets\n' "$C_DIM" "$C_RESET"
 else
-  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --bin-dir "$BIN_DIR" --layer-shell-preload "$preload_env" 2>/dev/null)"
-  GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>/dev/null)"
+  # Capture stderr separately so a real traceback surfaces; the empty-stdout
+  # check below distinguishes "no providers enabled" (legitimate skip) from
+  # "generator crashed" (we re-emit the stderr and fail loudly).
+  GEN_MODULES_ERR="$(mktemp)"
+  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --bin-dir "$BIN_DIR" --layer-shell-preload "$preload_env" 2>"$GEN_MODULES_ERR")"
+  gen_rc=$?
+  if [[ $gen_rc -ne 0 ]]; then
+    cat "$GEN_MODULES_ERR" >&2
+    rm -f "$GEN_MODULES_ERR"
+    fail "_generate_waybar.py (module) exited $gen_rc — see traceback above"
+  fi
+  rm -f "$GEN_MODULES_ERR"
+
+  GEN_STYLE_ERR="$(mktemp)"
+  GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>"$GEN_STYLE_ERR")"
+  gen_style_rc=$?
+  if [[ $gen_style_rc -ne 0 ]]; then
+    cat "$GEN_STYLE_ERR" >&2
+    rm -f "$GEN_STYLE_ERR"
+    fail "_generate_waybar.py (style) exited $gen_style_rc — see traceback above"
+  fi
+  rm -f "$GEN_STYLE_ERR"
+
   if [[ -z "$GEN_MODULES" ]]; then
     warn "no enabled providers in $CFG_DIR/config.toml — skipping Waybar patch"
   else
