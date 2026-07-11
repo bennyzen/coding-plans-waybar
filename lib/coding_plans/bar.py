@@ -112,11 +112,6 @@ def _render(plans: list[PlanStatus], cfg: dict, palette: dict) -> dict:
             )
 
     cls = worst_class([p.status_class for p in plans])
-    if cls == "stale" and all(p.status_class in {"empty", "stale"} for p in plans):
-        if any(p.status_class == "stale" for p in plans):
-            cls = "stale"
-        else:
-            cls = "empty"
 
     pcts = [p for plan in plans for p in (plan.short_pct, plan.weekly_pct) if p is not None]
     percentage = max(pcts, default=0)
@@ -128,6 +123,17 @@ def _render(plans: list[PlanStatus], cfg: dict, palette: dict) -> dict:
         "alt": cls,
         "percentage": int(percentage),
     }
+
+
+def _emit(payload: dict) -> None:
+    """Print one Waybar JSON payload. Swallows BrokenPipeError — waybar
+    occasionally closes the pipe mid-write on reload, and the resulting
+    traceback on stderr is noise. Affects every emit path equally
+    (single-provider, multi-provider, and the two empty states)."""
+    try:
+        print(json.dumps(payload))
+    except BrokenPipeError:
+        sys.stderr.close()
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -172,28 +178,23 @@ def main(argv: list[str] | None = None) -> int:
         if provider is None:
             # Emit a visible empty segment so the user can see the module is
             # alive but unconfigured.
-            print(json.dumps({
+            _emit({
                 "text": "—",
                 "tooltip": f"provider '{args.provider}' not enabled in ~/.config/coding-plans/config.toml",
                 "class": "empty",
                 "alt": "empty",
                 "percentage": 0,
-            }))
+            })
             return 0
         plans = [_safe_fetch(provider, cfg)]
-        print(json.dumps(_render(plans, cfg, palette)))
+        _emit(_render(plans, cfg, palette))
         return 0
 
     # Multi-provider mode (legacy single-module layout).
     providers = load_enabled(cfg)
     if not providers:
-        print(json.dumps(_empty_payload(palette)))
+        _emit(_empty_payload(palette))
         return 0
     plans = [_safe_fetch(p, cfg) for p in providers]
-
-    try:
-        print(json.dumps(_render(plans, cfg, palette)))
-    except BrokenPipeError:
-        # waybar occasionally closes the pipe mid-write on reload.
-        sys.stderr.close()
+    _emit(_render(plans, cfg, palette))
     return 0

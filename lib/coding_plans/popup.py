@@ -15,6 +15,7 @@ then provider-specific extras via ``providers.<id>.build_popup_rows()``.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -993,8 +994,7 @@ class UsagePopup(Adw.Application):
                     (
                         t
                         for t in ("alacritty", "kitty", "ghostty", "foot", "wezterm")
-                        if subprocess.run(["which", t], capture_output=True).returncode
-                        == 0
+                        if shutil.which(t) is not None
                     ),
                     None,
                 )

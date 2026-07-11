@@ -298,8 +298,29 @@ step "generate Waybar module + style blocks from config.toml"
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '%s[dry-run]%s would run _generate_waybar.py to build module + style snippets\n' "$C_DIM" "$C_RESET"
 else
-  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --bin-dir "$BIN_DIR" --layer-shell-preload "$preload_env" 2>/dev/null)"
-  GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>/dev/null)"
+  # Capture stderr separately so a real traceback surfaces; the empty-stdout
+  # check below distinguishes "no providers enabled" (legitimate skip) from
+  # "generator crashed" (we re-emit the stderr and fail loudly).
+  GEN_MODULES_ERR="$(mktemp)"
+  GEN_MODULES="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" module --icons-dir "$SHARE_DIR/icons" --bin-dir "$BIN_DIR" --layer-shell-preload "$preload_env" 2>"$GEN_MODULES_ERR")"
+  gen_rc=$?
+  if [[ $gen_rc -ne 0 ]]; then
+    cat "$GEN_MODULES_ERR" >&2
+    rm -f "$GEN_MODULES_ERR"
+    fail "_generate_waybar.py (module) exited $gen_rc — see traceback above"
+  fi
+  rm -f "$GEN_MODULES_ERR"
+
+  GEN_STYLE_ERR="$(mktemp)"
+  GEN_STYLE="$(CFG_DIR_EXPORT="$CFG_DIR" python3 "$SHARE_DIR/_generate_waybar.py" style  --icons-dir "$SHARE_DIR/icons" 2>"$GEN_STYLE_ERR")"
+  gen_style_rc=$?
+  if [[ $gen_style_rc -ne 0 ]]; then
+    cat "$GEN_STYLE_ERR" >&2
+    rm -f "$GEN_STYLE_ERR"
+    fail "_generate_waybar.py (style) exited $gen_style_rc — see traceback above"
+  fi
+  rm -f "$GEN_STYLE_ERR"
+
   if [[ -z "$GEN_MODULES" ]]; then
     warn "no enabled providers in $CFG_DIR/config.toml — skipping Waybar patch"
   else
