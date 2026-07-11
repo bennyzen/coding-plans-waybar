@@ -33,7 +33,7 @@ import sys
 from .config import load_config
 from .formatters import human_ago
 from .palette import load_palette
-from .providers import load_enabled
+from .providers import load_enabled, safe_fetch
 from .providers.base import PlanStatus
 from .render import render_label, render_tooltip_block, worst_class
 
@@ -53,20 +53,6 @@ def _empty_payload(palette: dict[str, str]) -> dict:
         "alt": "empty",
         "percentage": 0,
     }
-
-
-def _safe_fetch(provider, cfg) -> PlanStatus:
-    """Catch anything a provider throws and return a stale PlanStatus with
-    ``error`` set. One misbehaving provider must not break the whole bar."""
-    try:
-        return provider.fetch(cfg)
-    except Exception as exc:
-        return PlanStatus(
-            provider_id=provider.id,
-            display_name=provider.display_name,
-            status_class="stale",
-            error=f"fetch failed: {exc!r}",
-        )
 
 
 def _render(plans: list[PlanStatus], cfg: dict, palette: dict) -> dict:
@@ -186,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
                 "percentage": 0,
             })
             return 0
-        plans = [_safe_fetch(provider, cfg)]
+        plans = [safe_fetch(provider, cfg)]
         _emit(_render(plans, cfg, palette))
         return 0
 
@@ -195,6 +181,6 @@ def main(argv: list[str] | None = None) -> int:
     if not providers:
         _emit(_empty_payload(palette))
         return 0
-    plans = [_safe_fetch(p, cfg) for p in providers]
+    plans = [safe_fetch(p, cfg) for p in providers]
     _emit(_render(plans, cfg, palette))
     return 0

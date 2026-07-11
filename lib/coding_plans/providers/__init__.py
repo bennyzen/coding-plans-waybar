@@ -18,7 +18,7 @@ from __future__ import annotations
 import importlib
 from typing import Any
 
-from .base import Provider
+from .base import PlanStatus, Provider
 
 
 def load_enabled(config: dict[str, Any]) -> list[Provider]:
@@ -37,3 +37,18 @@ def load_enabled(config: dict[str, Any]) -> list[Provider]:
             continue
         enabled.append(provider)
     return enabled
+
+
+def safe_fetch(provider: Any, cfg: dict[str, Any]) -> PlanStatus:
+    """Call ``provider.fetch(cfg)``; on any exception return a stale
+    ``PlanStatus`` with ``error`` set. One misbehaving provider must not
+    break the whole bar or popup — shared by both call sites."""
+    try:
+        return provider.fetch(cfg)
+    except Exception as exc:  # noqa: BLE001
+        return PlanStatus(
+            provider_id=provider.id,
+            display_name=provider.display_name,
+            status_class="stale",
+            error=f"fetch failed: {exc!r}",
+        )

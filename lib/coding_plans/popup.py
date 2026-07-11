@@ -71,7 +71,7 @@ from .formatters import (  # noqa: E402
 )
 from .palette import BAKED_PALETTE, load_palette  # noqa: E402,F401
 from .paths import CONFIG_PATH  # noqa: E402
-from .providers import load_enabled  # noqa: E402
+from .providers import load_enabled, safe_fetch  # noqa: E402
 from .providers.base import PlanStatus  # noqa: E402
 
 PIDFILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "coding-plans-popup.pid"
@@ -333,21 +333,6 @@ def toggle_existing() -> bool:
     except ProcessLookupError:
         PIDFILE.unlink(missing_ok=True)
         return False
-
-
-# ─── Safe fetch (mirrors bar._safe_fetch) ─────────────────────────────────
-
-
-def _safe_fetch(provider: Any, cfg: dict[str, Any]) -> PlanStatus:
-    try:
-        return provider.fetch(cfg)
-    except Exception as exc:  # noqa: BLE001
-        return PlanStatus(
-            provider_id=provider.id,
-            display_name=provider.display_name,
-            status_class="stale",
-            error=f"fetch failed: {exc!r}",
-        )
 
 
 # ─── Classification helpers ───────────────────────────────────────────────
@@ -960,7 +945,7 @@ class UsagePopup(Adw.Application):
         if not self.cards:
             return
         for card in self.cards:
-            plan = _safe_fetch(card.provider, self.cfg)
+            plan = safe_fetch(card.provider, self.cfg)
             card.update(plan, self.cfg, self.palette)
 
     def _shutdown(self) -> None:
