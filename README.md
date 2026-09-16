@@ -1,6 +1,8 @@
 # coding-plans-waybar
 
-A Waybar widget for AI coding-plan usage. One module per provider, each with its own brand icon via CSS `background-image`, stats (`5h%·weekly%`) as the label. Click any module → one unified Adwaita popover with per-provider cards.
+A bar widget for AI coding-plan usage. One module per provider, each with its own brand icon, stats (`5h%·weekly%`) as the label. Click any module → one unified Adwaita popover with per-provider cards.
+
+Ships for **Waybar** (brand icon via CSS `background-image`) and **Noctalia** (a plugin under [`noctalia/`](noctalia/)).
 
 Soft-forked from [infiniV/claude-usage-waybar](https://github.com/infiniV/claude-usage-waybar) (Claude-only) and extended with a pluggable provider system.
 
@@ -60,6 +62,9 @@ Run its `./uninstall.sh` first, then ours. We deliberately don't automate that m
 
 ## Styling
 
+Waybar only — Noctalia capsules follow the shell's own theme and are configured
+per capsule in Settings, not here.
+
 Every visual knob is a TOML key under `[style]` (global) or `[providers.<id>.style]` (per-provider override). Change a value, re-run `./install.sh`, done. Your overrides land in the generated CSS verbatim:
 
 ```toml
@@ -93,6 +98,51 @@ icon_size = "15px"
 icon_bg_color = "#ffffff"
 ```
 
+## Noctalia
+
+[Noctalia](https://noctalia.dev) is a Quickshell-based Wayland shell with its own
+plugin system, so the Waybar module cannot be reused as-is. `noctalia/` holds a
+plugin that drives the same CLI.
+
+It stays thin: `coding-plans-bar --provider <id>` remains the source of truth.
+The plugin reads that JSON, uses `text` as the capsule label, maps `class` to a
+theme color role, and on left click launches `coding-plans-popup` — the same GTK
+popover Waybar users get.
+
+`install.sh` does **not** touch Noctalia. Register this directory as a path-type
+plugin source and enable it:
+
+```bash
+noctalia msg plugins source add coding-plans path "$PWD/noctalia"
+noctalia msg plugins enable bennyzen/coding-plans
+```
+
+Then add the widget to a bar in Settings → Bar. One capsule shows one provider;
+add a second instance and set each one's `provider` for a second.
+
+### Per-capsule settings
+
+| Key | Default | What |
+|---|---|---|
+| `provider` | `claude` | provider id, as in `config.toml` |
+| `icon_path` | *(empty)* | explicit icon file; empty auto-detects the brand SVG |
+| `glyph` | `brain` | Tabler icon name, used only when no SVG resolves |
+| `show_glyph` | `true` | the icon beside the reading |
+| `show_name` | `false` | the provider id next to the percentages |
+| `refresh_minutes` | `5` | minutes between readings |
+
+Icons resolve from the installed tree, preferring `<id>-color.svg` over the mono
+`<id>.svg` before falling back to the icon font. An installed tree can predate a
+checkout that added a colour variant — re-run `./install.sh` if a capsule shows
+the mono icon.
+
+Noctalia does not render Pango, so the tooltip markup is stripped and emitted one
+row per line.
+
+The plugin loads directly from this checkout, so editing `bar.luau` hot-reloads.
+`plugin.toml` does not: adding or renaming a setting needs `plugins disable` then
+`enable`, or the shell logs `read undeclared setting '<key>'`.
+
 ## Layout
 
 ```
@@ -116,6 +166,9 @@ icon_bg_color = "#ffffff"
 ~/.config/coding-plans/config.toml
 ~/.cache/coding-plans/state.json     — shared state, keyed by provider id
 ```
+
+`noctalia/` is not installed anywhere: the shell loads that plugin from this
+checkout via a path-type source. See [Noctalia](#noctalia).
 
 ## Uninstall
 
