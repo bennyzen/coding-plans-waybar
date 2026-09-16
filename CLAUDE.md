@@ -54,6 +54,15 @@ markers in whatever comment style the file uses (`//`, `#`, `/* */`).
    `claude-usage-statusline` and skips chaining when found. If you touch
    the chaining logic, preserve this guard.
 
+6. **Noctalia hot-reloads `bar.luau`, but not `plugin.toml`.**
+   The shell watches the plugin's `.luau` files and re-renders on save, so code
+   edits land straight from this checkout. The manifest is only read when the
+   plugin is exported, so adding or renaming a `[[widget.setting]]` needs
+   `noctalia msg plugins disable bennyzen/coding-plans` then `enable`. Skip it
+   and `noctalia.getConfig("<key>")` returns nil while the shell logs
+   `read undeclared setting '<key>'` — which reads like a code bug, not a
+   stale manifest.
+
 ## Override env vars install.sh honours
 
 `BIN_DIR` `SHARE_DIR` `CFG_DIR` `CACHE_DIR` `WAYBAR_DIR` `WAYBAR_CONFIG`
@@ -83,6 +92,9 @@ emitted module is using a bare invocation — see footgun #1.
 - `share/_generate_waybar.py` — emits per-provider module + style snippets from config.toml
 - `share/_patch_waybar.py` / `_patch_style.py` / `_patch_toml.py` — marker-guarded patchers
 - `share/config/config.toml.example` — seed config; canonical reference for tunable keys
+- `noctalia/` — Noctalia plugin source root (`catalog.toml` + `coding-plans/`); a
+  path-type source needs that hand-written `catalog.toml`, which upstream
+  community sources generate in CI. Not touched by `install.sh`.
 
 Adding a new provider: see `PROVIDERS.md` (it's the contract).
 
