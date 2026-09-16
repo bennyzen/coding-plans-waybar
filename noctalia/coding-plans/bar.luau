@@ -154,7 +154,11 @@ end
 function onClick()
     -- The upstream popup is a full GTK window and owns its own layout; there is
     -- no Noctalia panel to duplicate it.
-    noctalia.runAsync("coding-plans-popup", function() end, 10000)
+    --
+    -- No callback: the callback form captures output and kills the child when
+    -- its timeout expires, which closed the popup ~10 s after every click. The
+    -- bare form starts a detached process and leaves it alone.
+    noctalia.runAsync("coding-plans-popup")
 end
 
 render()

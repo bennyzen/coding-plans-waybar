@@ -63,6 +63,16 @@ markers in whatever comment style the file uses (`//`, `#`, `/* */`).
    `read undeclared setting '<key>'` — which reads like a code bug, not a
    stale manifest.
 
+7. **Noctalia's `runAsync(cmd, cb, timeoutMs)` kills the child on timeout.**
+   The callback form captures output and terminates the process when the
+   timeout lapses — used for the popup it closed the window ~10 s after every
+   click, which users report as "closes when the mouse leaves". Long-lived
+   launches (the popup) must use the bare `noctalia.runAsync(cmd)` form, which
+   is documented as detached. Keep the callback form for `coding-plans-bar`
+   polling only. To drive `onClick` from a shell for testing, add a temporary
+   `onIpc(event)` and run `noctalia msg plugin bennyzen/coding-plans:bar all click`
+   — it dispatches to every capsule, so gate it on `provider`.
+
 ## Override env vars install.sh honours
 
 `BIN_DIR` `SHARE_DIR` `CFG_DIR` `CACHE_DIR` `WAYBAR_DIR` `WAYBAR_CONFIG`
