@@ -160,3 +160,70 @@ def test_empty_daily_array_writes_zero_totals(tmp_path):
     assert today["tokens"] == 0
     assert today["cost_usd"] == 0
     assert today["models"] == []
+
+
+# ─── Per-model breakdown ────────────────────────────────────────────────────
+
+_CCUSAGE_BREAKDOWN_FIXTURE = json.dumps(
+    {
+        "daily": [
+            {
+                "date": "20260711",
+                "totalTokens": 1800,
+                "totalCost": 0.05,
+                "modelsUsed": ["claude-opus-5", "claude-sonnet-4"],
+                "modelBreakdowns": [
+                    {
+                        "modelName": "claude-sonnet-4",
+                        "inputTokens": 100,
+                        "outputTokens": 50,
+                        "cacheCreationTokens": 20,
+                        "cacheReadTokens": 30,
+                        "cost": 0.01,
+                    },
+                    {
+                        "modelName": "claude-opus-5",
+                        "inputTokens": 900,
+                        "outputTokens": 450,
+                        "cacheCreationTokens": 180,
+                        "cacheReadTokens": 70,
+                        "cost": 0.04,
+                    },
+                ],
+            }
+        ]
+    }
+)
+
+
+def test_writes_per_model_breakdown_sorted_by_cost(tmp_path):
+    """``today.by_model`` carries one entry per model with summed tokens
+    (input + output + cache create + cache read) and cost, most expensive
+    first, with the same short model names as ``today.models``."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    binpath = _make_fake_ccusage(tmp_path / "bin", fixture=_CCUSAGE_BREAKDOWN_FIXTURE)
+
+    result = _run_script(cache, binpath)
+    assert result.returncode == 0, result.stderr
+
+    state = json.loads((cache / "coding-plans" / "state.json").read_text())
+    by_model = state["providers"]["claude"]["today"]["by_model"]
+    assert by_model == [
+        {"model": "opus-5", "tokens": 1600, "cost_usd": 0.04},
+        {"model": "sonnet-4", "tokens": 200, "cost_usd": 0.01},
+    ]
+
+
+def test_missing_breakdowns_yields_empty_by_model(tmp_path):
+    """Older ccusage payloads without ``modelBreakdowns`` still produce a
+    valid ``by_model`` list (empty), never null."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    binpath = _make_fake_ccusage(tmp_path / "bin")
+
+    result = _run_script(cache, binpath)
+    assert result.returncode == 0, result.stderr
+
+    state = json.loads((cache / "coding-plans" / "state.json").read_text())
+    assert state["providers"]["claude"]["today"]["by_model"] == []

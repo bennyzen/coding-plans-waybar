@@ -63,12 +63,17 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 
 from .config import load_config  # noqa: E402
 from .formatters import (  # noqa: E402
+    SHORT_WINDOW_S,
+    WEEKLY_WINDOW_S,
     human_ago,
     human_cost,
     human_countdown,
     human_tokens,
     is_stale,
+    model_rows,
+    pace_label,
     reset_wall_clock,
+    window_pace,
 )
 from .palette import BAKED_PALETTE, load_palette  # noqa: E402,F401
 from .paths import CONFIG_PATH  # noqa: E402
@@ -223,6 +228,7 @@ window.coding-plans-popup {{
   margin-top: 6px;
   padding-left: 1px;
 }}
+.cp-sub.over {{ color: @cp_danger; }}
 
 /* Progress rail ──────────────────────────────────────── */
 progressbar.cp-rail trough {{
@@ -260,6 +266,25 @@ progressbar.cp-rail.empty progress {{ background-color: transparent; }}
   letter-spacing: 0.14em;
   color: @cp_muted;
   text-transform: uppercase;
+}}
+
+/* Per-model table (under the TODAY totals) ───────────── */
+.cp-model-name {{
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: @cp_text;
+  text-transform: uppercase;
+}}
+.cp-model-value {{
+  font-size: 10.5px;
+  font-feature-settings: "tnum";
+  color: @cp_text;
+}}
+.cp-model-share {{
+  font-size: 10.5px;
+  font-feature-settings: "tnum";
+  color: @cp_muted;
 }}
 
 /* Updated timestamp ──────────────────────────────────── */
@@ -503,7 +528,9 @@ class MetricRow(Gtk.Box):
         self.sub.add_css_class("cp-sub")
         self.append(self.sub)
 
-    def update(self, *, pct: int | None, sub: str, stale: bool, cfg: dict) -> None:
+    def update(
+        self, *, pct: int | None, sub: str, stale: bool, cfg: dict, over: bool = False
+    ) -> None:
         cls = metric_class(pct, stale, cfg)
         for c in ("crit", "over", "empty", "stale"):
             self.remove_css_class(c)
@@ -519,6 +546,10 @@ class MetricRow(Gtk.Box):
             self.pct_label.set_label(f"{pct}%")
             self.bar.set_fraction(max(0.0, min(1.0, pct / 100.0)))
         self.sub.set_label(sub)
+        if over:
+            self.sub.add_css_class("over")
+        else:
+            self.sub.remove_css_class("over")
 
 
 class TodayRow(Gtk.Box):
@@ -558,11 +589,50 @@ class TodayRow(Gtk.Box):
         grid.attach(self.cost_val, 1, 1, 1, 1)
         self.append(grid)
 
+        # Per-model table: MODEL · TOKENS · COST · SHARE, one row per model
+        # ccusage saw today. Rebuilt on every update (model set changes
+        # rarely, and the row count is tiny). Hidden when there's no data.
+        self.models_grid = Gtk.Grid(column_spacing=14, row_spacing=3)
+        self.models_grid.set_margin_top(10)
+        self.models_grid.set_visible(False)
+        self.append(self.models_grid)
+        self._model_rows_shown: list[tuple[str, str, str, str]] = []
+
     def update(self, today: dict) -> None:
         self.tok_val.set_label(human_tokens(today.get("tokens", 0) or 0))
         self.cost_val.set_label(human_cost(today.get("cost_usd", 0) or 0))
         models = today.get("models") or []
         self.models_label.set_label(" · ".join(models).upper() if models else "")
+        self._update_models(model_rows(today.get("by_model")))
+
+    def _update_models(self, rows: list[tuple[str, str, str, str]]) -> None:
+        if rows == self._model_rows_shown:
+            return
+        self._model_rows_shown = rows
+        while (child := self.models_grid.get_first_child()) is not None:
+            self.models_grid.remove(child)
+        if not rows:
+            self.models_grid.set_visible(False)
+            return
+        for col, header in enumerate(("MODEL", "TOKENS", "COST", "SHARE")):
+            lbl = Gtk.Label(label=header, xalign=1.0 if col else 0.0)
+            lbl.add_css_class("cp-today-label")
+            self.models_grid.attach(lbl, col, 0, 1, 1)
+        for r, (name, tokens, cost, share) in enumerate(rows, start=1):
+            name_lbl = Gtk.Label(label=name, xalign=0.0)
+            name_lbl.add_css_class("cp-model-name")
+            name_lbl.set_hexpand(True)
+            name_lbl.set_ellipsize(3)
+            name_lbl.set_max_width_chars(18)
+            self.models_grid.attach(name_lbl, 0, r, 1, 1)
+            for col, (text, cls) in enumerate(
+                ((tokens, "cp-model-value"), (cost, "cp-model-value"), (share, "cp-model-share")),
+                start=1,
+            ):
+                lbl = Gtk.Label(label=text, xalign=1.0)
+                lbl.add_css_class(cls)
+                self.models_grid.attach(lbl, col, r, 1, 1)
+        self.models_grid.set_visible(True)
 
 
 class SessionRow(Gtk.Box):
@@ -832,17 +902,27 @@ class ProviderCard(Gtk.Box):
         # 5H / WEEKLY rows.
         short_reset = plan.resets_short_ms // 1000 if plan.resets_short_ms else None
         weekly_reset = plan.resets_weekly_ms // 1000 if plan.resets_weekly_ms else None
+        short_pace = window_pace(pct=plan.short_pct, resets_at=short_reset, window_s=SHORT_WINDOW_S)
+        weekly_pace = window_pace(pct=plan.weekly_pct, resets_at=weekly_reset, window_s=WEEKLY_WINDOW_S)
         self.five_row.update(
             pct=plan.short_pct,
-            sub=f"RESETS · {human_countdown(short_reset).upper()}",
+            sub=(
+                f"RESETS · {human_countdown(short_reset).upper()}"
+                f"   {pace_label(short_pace)}"
+            ),
             stale=stale,
             cfg=cfg,
+            over=bool(short_pace and short_pace.over),
         )
         self.week_row.update(
             pct=plan.weekly_pct,
-            sub=f"RESETS · {reset_wall_clock(weekly_reset).upper()}",
+            sub=(
+                f"RESETS · {reset_wall_clock(weekly_reset).upper()}"
+                f"   {pace_label(weekly_pace)}"
+            ),
             stale=stale,
             cfg=cfg,
+            over=bool(weekly_pace and weekly_pace.over),
         )
 
         # Extras — build once, then update in place. We dispatch on widget

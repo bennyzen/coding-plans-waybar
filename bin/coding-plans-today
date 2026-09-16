@@ -6,6 +6,12 @@
 # ccusage v18 schema (captured 2026-04-15):
 #   daily[].{date, inputTokens, outputTokens, cacheCreationTokens,
 #            cacheReadTokens, totalTokens, totalCost, modelsUsed, modelBreakdowns}
+#   modelBreakdowns[].{modelName, inputTokens, outputTokens,
+#                      cacheCreationTokens, cacheReadTokens, cost}
+#
+# today.by_model keeps the full model name minus the "claude-" prefix
+# (e.g. "opus-5") so two versions of the same family stay distinguishable;
+# today.models keeps the older family-only spelling for the header chip.
 #
 # ccusage has NO machine-readable message count — we intentionally don't
 # write one. Popup/tooltip show only fields that map to real data.
@@ -45,6 +51,17 @@ summary="$(printf '%s' "$raw" | jq -c '
         ($rows | map(.modelsUsed // []) | add // [])
         | map(sub("^claude-"; "") | sub("-[0-9]+$"; ""))
         | unique
+      ),
+      by_model: (
+        ($rows | map(.modelBreakdowns // []) | add // [])
+        | group_by(.modelName)
+        | map({
+            model:    (.[0].modelName | sub("^claude-"; "")),
+            tokens:   (map((.inputTokens // 0) + (.outputTokens // 0)
+                           + (.cacheCreationTokens // 0) + (.cacheReadTokens // 0)) | add),
+            cost_usd: (map(.cost // 0) | add)
+          })
+        | sort_by(-.cost_usd)
       )
     }
 ' 2>/dev/null || true)"
@@ -72,7 +89,8 @@ if [[ -f "$STATE" ]]; then
     | .providers.claude.today = {
         tokens:   ($s.tokens // 0),
         cost_usd: ($s.cost   // 0),
-        models:   ($s.models // [])
+        models:   ($s.models // []),
+        by_model: ($s.by_model // [])
       }
   ' "$STATE" > "$tmp"
 else
@@ -86,7 +104,8 @@ else
           today: {
             tokens:   ($s.tokens // 0),
             cost_usd: ($s.cost   // 0),
-            models:   ($s.models // [])
+            models:   ($s.models // []),
+            by_model: ($s.by_model // [])
           },
           session: { id: "", model_id: "", model_name: "", cost_usd: 0,
                      lines_added: 0, lines_removed: 0,

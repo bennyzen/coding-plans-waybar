@@ -31,7 +31,7 @@ ICON_COLOR = "#D97757"
 DEFAULT_SLICE: dict[str, Any] = {
     "five_hour": {"pct": None, "resets_at": None},
     "seven_day": {"pct": None, "resets_at": None},
-    "today": {"tokens": 0, "cost_usd": 0.0, "models": []},
+    "today": {"tokens": 0, "cost_usd": 0.0, "models": [], "by_model": []},
     "session": {
         "id": "",
         "model_id": "",

@@ -60,6 +60,29 @@ echo 'sk-…' > ~/.config/coding-plans/zai-key && chmod 600 ~/.config/coding-pla
 
 Run its `./uninstall.sh` first, then ours. We deliberately don't automate that migration.
 
+## What the popover shows
+
+Each provider card has a **5-HOUR WINDOW** and a **WEEKLY** row. Under the
+percentage and rail, the sub line reads:
+
+```
+RESETS · 4H 41M   PACE 0.5× · PROJ 50% · OK
+```
+
+- **PACE** — used share of the quota divided by elapsed share of the window.
+  `1.0×` is a perfectly linear burn; `1.6×` means you're spending 60 % faster
+  than the window can sustain.
+- **PROJ** — utilisation at reset if that pace holds. Crossing 100 % flips the
+  tag to `OVER` and tints the line. `PACE —` appears for the first 5 % of a
+  window, where a handful of requests would make the ratio meaningless.
+
+Both derive from the used-percent + reset time every provider already reports,
+so they work for Claude and Z.AI alike.
+
+The Claude card's **TODAY** row additionally breaks the day down per model
+(name, tokens, cost, share of cost) from `ccusage`'s `modelBreakdowns`.
+Z.AI's quota endpoint has no per-model data, so its card doesn't get the table.
+
 ## Styling
 
 Waybar only — Noctalia capsules follow the shell's own theme and are configured
