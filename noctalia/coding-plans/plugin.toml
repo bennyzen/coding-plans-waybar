@@ -1,0 +1,72 @@
+# Coding Plans — Noctalia bar capsule over coding-plans-waybar.
+#
+# The Waybar entry point (`coding-plans-bar --provider <id>`) already emits
+# everything this needs as one JSON line: `text` is the "5h%·weekly%" label,
+# `class` carries the severity, `tooltip` is a Pango block.
+#
+# One capsule per provider: the upstream CLI is per-provider, so there is no
+# single call that returns them all and nothing to gain from a shared service.
+
+id = "bennyzen/coding-plans"
+name = "Coding Plans"
+version = "0.1.0"
+# 22 is the floor that the shell in use here accepts; no `require()` is needed.
+plugin_api = 22
+author = "bennyzen"
+license = "MIT"
+icon = "brain"
+description = "AI coding-plan usage on the bar: 5h and weekly percentages per provider, from coding-plans-waybar."
+# `coding-plans-popup` is only used by the click action; the capsule itself
+# needs the bar entry point alone.
+dependencies = ["coding-plans-bar", "coding-plans-popup"]
+tags = ["ai", "bar", "usage", "claude", "zai"]
+
+[[widget]]
+id = "bar"
+entry = "bar.luau"
+
+# Per-instance: one capsule for Claude, a second for Z.AI.
+[[widget.setting]]
+key = "provider"
+type = "string"
+label_key = "settings.provider.label"
+description_key = "settings.provider.description"
+default = "claude"
+
+[[widget.setting]]
+key = "icon_path"
+type = "string"
+label_key = "settings.icon_path.label"
+description_key = "settings.icon_path.description"
+default = ""
+
+# Only used when no brand SVG resolves.
+[[widget.setting]]
+key = "glyph"
+type = "string"
+label_key = "settings.glyph.label"
+description_key = "settings.glyph.description"
+default = "brain"
+
+[[widget.setting]]
+key = "show_glyph"
+type = "bool"
+label_key = "settings.show_glyph.label"
+description_key = "settings.show_glyph.description"
+default = true
+
+[[widget.setting]]
+key = "show_name"
+type = "bool"
+label_key = "settings.show_name.label"
+description_key = "settings.show_name.description"
+default = false
+
+[[widget.setting]]
+key = "refresh_minutes"
+type = "int"
+label_key = "settings.refresh_minutes.label"
+description_key = "settings.refresh_minutes.description"
+default = 5
+min = 1
+max = 120

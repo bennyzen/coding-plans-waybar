@@ -1,0 +1,28 @@
+{
+  "settings": {
+    "provider": {
+      "label": "Provider",
+      "description": "Provider id as configured in ~/.config/coding-plans/config.toml, for example claude or zai. One capsule shows one provider; add a second capsule for a second provider."
+    },
+    "glyph": {
+      "label": "Icon",
+      "description": "Tabler icon name, used only when no brand SVG is found."
+    },
+    "show_glyph": {
+      "label": "Show icon",
+      "description": "The icon beside the reading. Off leaves the percentages alone."
+    },
+    "show_name": {
+      "label": "Show provider name",
+      "description": "Adds the provider id next to the percentages, so two capsules do not look alike."
+    },
+    "refresh_minutes": {
+      "label": "Refresh interval",
+      "description": "Minutes between readings. Each capsule runs coding-plans-bar once per interval."
+    },
+    "icon_path": {
+      "label": "Icon file",
+      "description": "Path to an icon image. Leave empty to auto-detect the provider's brand SVG shipped with coding-plans-waybar; the icon font is used only if none is found."
+    }
+  }
+}

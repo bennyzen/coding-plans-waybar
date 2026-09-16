@@ -1,0 +1,16 @@
+# Local plugin source for Noctalia. Added with:
+#   noctalia msg plugins source add coding-plans path ~/repos/coding-plans-waybar/noctalia
+# Upstream community sources generate this file in CI; a path source needs it
+# written by hand.
+
+[[plugin]]
+id = "bennyzen/coding-plans"
+name = "Coding Plans"
+version = "0.1.0"
+author = "bennyzen"
+license = "MIT"
+icon = "brain"
+description = "AI coding-plan usage on the bar: 5h and weekly percentages per provider, from coding-plans-waybar."
+deprecated = false
+plugin_api = 22
+tags = ["ai", "bar", "usage", "claude", "zai"]
