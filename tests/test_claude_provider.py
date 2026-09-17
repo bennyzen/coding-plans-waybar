@@ -114,3 +114,53 @@ def test_record_turn_preserves_today_when_statusline_runs(xdg, seeded_claude):
     st = load_state()
     assert st["providers"]["claude"]["today"]["tokens"] == 12345
     assert st["providers"]["claude"]["five_hour"]["pct"] == 9
+
+
+# ─── scoped weekly limits (usage endpoint) ────────────────────────────────
+
+
+def _seed_scoped(pct: int, label: str = "Fable", resets_at: int = 1776852000) -> None:
+    from coding_plans.state import load_state, provider_state, set_provider_state, write_state
+    st = load_state()
+    slice_ = dict(provider_state(st, "claude"))
+    slice_["scoped_weekly"] = [{"label": label, "pct": pct, "resets_at": resets_at}]
+    set_provider_state(st, "claude", slice_)
+    write_state(st)
+
+
+def test_fetch_exposes_scoped_weekly_windows(xdg, seeded_claude):
+    seeded_claude()
+    _seed_scoped(13)
+    mod = _reload_claude()
+    plan = mod.PROVIDER.fetch({"thresholds": {"critical": 80, "exhausted": 100}})
+    assert len(plan.scoped_weekly) == 1
+    win = plan.scoped_weekly[0]
+    assert (win.label, win.pct, win.resets_ms) == ("Fable", 13, 1776852000 * 1000)
+
+
+def test_fetch_without_scoped_key_gives_empty_list(xdg, seeded_claude):
+    seeded_claude()  # statusline-only state predates scoped_weekly
+    mod = _reload_claude()
+    plan = mod.PROVIDER.fetch({"thresholds": {"critical": 80, "exhausted": 100}})
+    assert plan.scoped_weekly == []
+
+
+def test_scoped_weekly_drives_classification(xdg, seeded_claude):
+    seeded_claude()  # 4% / 12% — well under threshold
+    _seed_scoped(85)
+    mod = _reload_claude()
+    plan = mod.PROVIDER.fetch({"thresholds": {"critical": 80, "exhausted": 100}})
+    assert plan.status_class == "critical"
+
+
+def test_statusline_turn_preserves_scoped_weekly(xdg, seeded_claude):
+    seeded_claude()
+    _seed_scoped(13)
+    seeded_claude(rate_limits={
+        "five_hour": {"used_percentage": 9, "resets_at": 1776519000},
+        "seven_day": {"used_percentage": 18, "resets_at": 1776852000},
+    })
+    mod = _reload_claude()
+    plan = mod.PROVIDER.fetch({"thresholds": {"critical": 80, "exhausted": 100}})
+    assert plan.short_pct == 9
+    assert [w.label for w in plan.scoped_weekly] == ["Fable"]

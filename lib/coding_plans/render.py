@@ -68,6 +68,9 @@ def render_label(plan: PlanStatus, display_cfg: dict[str, Any]) -> str:
         "brand":        _brand_name(plan),
         "short_pct":    fmt_pct(plan.short_pct),
         "weekly_pct":   fmt_pct(plan.weekly_pct),
+        # First model-scoped weekly window (e.g. Fable on Claude Max); "?"
+        # when the provider has none so the format stays parseable.
+        "scoped_pct":   fmt_pct(plan.scoped_weekly[0].pct if plan.scoped_weekly else None),
         "plan_tier":    (plan.plan_tier or "").upper(),
         "display_name": plan.display_name,
     }
@@ -196,6 +199,19 @@ def render_tooltip_block(
         critical=critical,
         exhausted=exhausted,
     )
+    for win in plan.scoped_weekly:
+        scoped_reset = win.resets_ms // 1000 if win.resets_ms else None
+        _metric_block(
+            lines,
+            palette,
+            token="7D",
+            title=f"{win.label.upper()} WEEKLY",
+            pct=win.pct,
+            resets_label=f"resets · {reset_wall_clock(scoped_reset)}",
+            tooltip_cfg=tooltip_cfg,
+            critical=critical,
+            exhausted=exhausted,
+        )
 
     lines.extend(_provider_extras(plan, cfg, palette))
 

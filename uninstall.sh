@@ -29,7 +29,7 @@ if command -v systemctl >/dev/null; then
 fi
 
 step "remove bins"
-for f in coding-plans-bar coding-plans-popup coding-plans-statusline coding-plans-today; do
+for f in coding-plans-bar coding-plans-popup coding-plans-statusline coding-plans-today coding-plans-usage; do
   rm -f "$BIN_DIR/$f"
 done
 ok "bins removed"

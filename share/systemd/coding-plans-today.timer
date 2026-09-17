@@ -1,15 +1,16 @@
 [Unit]
-Description=coding-plans-waybar: run today's Claude backfill every 5 min
+Description=coding-plans-waybar: poll Claude usage + today's backfill every 2 min
 
 [Timer]
 # OnActiveSec: fire 30 s after the timer itself is activated (i.e. right
 #   after `systemctl enable --now`) — otherwise a fresh install waits up
 #   to 5 min before the first backfill and Today reads 0.
-# OnUnitActiveSec: then repeat every 5 min based on the service's last run.
+# OnUnitActiveSec: then repeat every 2 min — must stay under
+#   behavior.stale_after_seconds (300) or the bar flaps to IDLE between ticks.
 # OnBootSec: also cover reboots (user session start).
 OnActiveSec=30s
 OnBootSec=1min
-OnUnitActiveSec=5min
+OnUnitActiveSec=2min
 Unit=coding-plans-today.service
 Persistent=true
 

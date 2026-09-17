@@ -8,13 +8,13 @@ in the past — keep it tight.
 
 | Path | What lands |
 |---|---|
-| `~/.local/bin/coding-plans-{bar,popup,statusline,today}` | the four CLIs |
+| `~/.local/bin/coding-plans-{bar,popup,statusline,today,usage}` | the five CLIs |
 | `~/.local/share/coding-plans-waybar/` | Python pkg + share assets + icons |
 | `~/.config/coding-plans/config.toml` | seeded from `share/config/config.toml.example` only if missing |
 | `~/.config/waybar/<config>.jsonc` | marker-guarded module block + `modules-right` entries |
 | `~/.config/waybar/<style>.css` | marker-guarded styling block |
 | `~/.claude/settings.json` | `statusLine.command` rewritten; any pre-existing one is chained via config.toml |
-| `~/.config/systemd/user/coding-plans-today.{service,timer}` | enabled user timer |
+| `~/.config/systemd/user/coding-plans-today.{service,timer}` | enabled user timer (2 min): `coding-plans-usage` then `coding-plans-today` |
 
 Every external edit is bracketed by `>>> coding-plans-waybar >>>` / `<<<`
 markers in whatever comment style the file uses (`//`, `#`, `/* */`).
@@ -73,6 +73,23 @@ markers in whatever comment style the file uses (`//`, `#`, `/* */`).
    `onIpc(event)` and run `noctalia msg plugin bennyzen/coding-plans:bar all click`
    — it dispatches to every capsule, so gate it on `provider`.
 
+8. **The Fable weekly limit is NOT in the statusline JSON.** Claude Code's
+   statusLine payload only ever carries `rate_limits.five_hour`,
+   `seven_day` and (gateway) `spend_limit` — verified against the 2.1.274
+   binary. Model-scoped limits ("Fable this week") only come from
+   `GET api.anthropic.com/api/oauth/usage`, as `limits[]` entries with
+   `kind == "weekly_scoped"` and `scope.model.display_name`; the legacy
+   top-level `seven_day_opus`-style keys are null. `coding-plans-usage`
+   polls it from the timer using `accessToken` from
+   `~/.claude/.credentials.json` (read-only). Never touch `refreshToken` —
+   rotating it logs Claude Code out. 401 just means the token expired
+   because Claude Code hasn't run lately; keep the last state, don't retry.
+
+9. **Timer interval must stay under `behavior.stale_after_seconds`.** The
+   usage poll now bumps `updated_at` as the statusline does; with the
+   default 300 s stale limit the timer runs every 2 min. Put it back to
+   5 min and the bar flaps to IDLE between ticks.
+
 ## Override env vars install.sh honours
 
 `BIN_DIR` `SHARE_DIR` `CFG_DIR` `CACHE_DIR` `WAYBAR_DIR` `WAYBAR_CONFIG`
@@ -97,7 +114,7 @@ emitted module is using a bare invocation — see footgun #1.
 
 ## Map of the moving parts
 
-- `bin/` — the four CLIs the user calls; thin entry points into `lib/`
+- `bin/` — the five CLIs the user calls; thin entry points into `lib/`
 - `lib/coding_plans/` — provider modules (`providers/<id>.py`) + UI code
 - `share/_generate_waybar.py` — emits per-provider module + style snippets from config.toml
 - `share/_patch_waybar.py` / `_patch_style.py` / `_patch_toml.py` — marker-guarded patchers

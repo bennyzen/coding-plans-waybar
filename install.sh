@@ -35,13 +35,13 @@ for arg in "$@"; do
 Usage: install.sh [--dry-run]
 
 Installs coding-plans-waybar into:
-  ~/.local/bin/                       coding-plans-{bar,popup,statusline,today}
+  ~/.local/bin/                       coding-plans-{bar,popup,statusline,today,usage}
   ~/.local/share/coding-plans-waybar/ Python package + share assets
   ~/.config/coding-plans/config.toml  default config
   ~/.claude/settings.json             statusLine.command (chained if present)
   ~/.config/waybar/config.jsonc       custom/coding-plans module
   ~/.config/waybar/style.css          theming snippet
-  ~/.config/systemd/user/             ccusage backfill timer (optional)
+  ~/.config/systemd/user/             usage poll + ccusage backfill timer (optional)
 
 Re-run safely; all edits are guarded by BEGIN/END markers.
 EOF
@@ -155,7 +155,7 @@ fi
 # ───────── copy bins ─────────────────────────────────────────────────────
 step "copy bins → $BIN_DIR"
 run "mkdir -p '$BIN_DIR'"
-for f in coding-plans-bar coding-plans-popup coding-plans-statusline coding-plans-today; do
+for f in coding-plans-bar coding-plans-popup coding-plans-statusline coding-plans-today coding-plans-usage; do
   run "install -m 0755 '$SRC/bin/$f' '$BIN_DIR/$f'"
 done
 

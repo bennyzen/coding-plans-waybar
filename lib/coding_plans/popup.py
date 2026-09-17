@@ -443,9 +443,10 @@ def status_tag(plan: PlanStatus, cfg: dict) -> tuple[str, str]:
         if updated:
             return (f"idle · {human_ago(updated).replace(' ago', '')}", "idle")
         return ("idle", "idle")
-    if pct5 is None and pctW is None:
+    pcts = [p for p in (pct5, pctW, *(w.pct for w in plan.scoped_weekly)) if p is not None]
+    if not pcts:
         return ("— —", "idle")
-    worst = max((p for p in (pct5, pctW) if p is not None), default=0)
+    worst = max(pcts)
     if worst >= exhausted:
         return ("over", "over")
     if worst >= critical:
@@ -817,6 +818,12 @@ class ProviderCard(Gtk.Box):
         self.append(self._make_rule())
         self.append(self.week_row)
 
+        # Model/surface-scoped weekly rows (e.g. "Fable this week" on Claude
+        # Max). Built on first refresh, keyed by label, updated in place.
+        self._scoped_wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self._scoped_rows: dict[str, MetricRow] = {}
+        self.append(self._scoped_wrap)
+
         # Provider-specific extras. Rebuilt lazily on first refresh so the
         # provider's ``build_popup_rows()`` can return fresh widgets keyed to
         # the current PlanStatus. After that we just update in place.
@@ -852,6 +859,31 @@ class ProviderCard(Gtk.Box):
             '  <span foreground="#727272">·</span>  '
             '<span letter_spacing="440">USAGE</span>'
         )
+
+    def _refresh_scoped(self, plan: PlanStatus, stale: bool, cfg: dict) -> None:
+        wanted = [w.label for w in plan.scoped_weekly]
+        if list(self._scoped_rows) != wanted:
+            child = self._scoped_wrap.get_first_child()
+            while child is not None:
+                nxt = child.get_next_sibling()
+                self._scoped_wrap.remove(child)
+                child = nxt
+            self._scoped_rows = {}
+            for label in wanted:
+                self._scoped_wrap.append(self._make_rule())
+                row = MetricRow("7D", f"{label.upper()} WEEKLY")
+                self._scoped_wrap.append(row)
+                self._scoped_rows[label] = row
+        for win in plan.scoped_weekly:
+            reset = win.resets_ms // 1000 if win.resets_ms else None
+            pace = window_pace(pct=win.pct, resets_at=reset, window_s=WEEKLY_WINDOW_S)
+            self._scoped_rows[win.label].update(
+                pct=win.pct,
+                sub=f"RESETS · {reset_wall_clock(reset).upper()}   {pace_label(pace)}",
+                stale=stale,
+                cfg=cfg,
+                over=bool(pace and pace.over),
+            )
 
     def _build_extras(self, plan: PlanStatus, cfg: dict, palette: dict) -> None:
         """Call the provider's ``build_popup_rows`` hook (if any), wrap each
@@ -924,6 +956,7 @@ class ProviderCard(Gtk.Box):
             cfg=cfg,
             over=bool(weekly_pace and weekly_pace.over),
         )
+        self._refresh_scoped(plan, stale, cfg)
 
         # Extras — build once, then update in place. We dispatch on widget
         # type so popup.py doesn't need to know about provider internals

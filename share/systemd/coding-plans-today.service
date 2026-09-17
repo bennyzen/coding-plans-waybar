@@ -1,10 +1,13 @@
 [Unit]
-Description=coding-plans-waybar: backfill today's Claude tokens + cost from ccusage
+Description=coding-plans-waybar: poll Claude usage windows + backfill today's tokens/cost
 After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/coding-plans-today
+# '-' prefix: a failing step (no ccusage, expired OAuth token) must not
+# block the other one.
+ExecStart=-%h/.local/bin/coding-plans-usage
+ExecStart=-%h/.local/bin/coding-plans-today
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7

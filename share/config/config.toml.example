@@ -55,7 +55,9 @@ exhausted_weight  = "700"
 
 [display]
 # Per-provider bar segment (Pango markup). Placeholders:
-#   {short_pct} {weekly_pct} {plan_tier} {display_name}
+#   {short_pct} {weekly_pct} {scoped_pct} {plan_tier} {display_name}
+# {scoped_pct} = first model-scoped weekly limit (Claude Max: "Fable this
+# week"); renders "?" for providers without one.
 bar_format           = "{short_pct}%·{weekly_pct}%"
 join                 = "  "
 show_empty_providers = false

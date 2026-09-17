@@ -99,7 +99,12 @@ def _render(plans: list[PlanStatus], cfg: dict, palette: dict) -> dict:
 
     cls = worst_class([p.status_class for p in plans])
 
-    pcts = [p for plan in plans for p in (plan.short_pct, plan.weekly_pct) if p is not None]
+    pcts = [
+        p
+        for plan in plans
+        for p in (plan.short_pct, plan.weekly_pct, *(w.pct for w in plan.scoped_weekly))
+        if p is not None
+    ]
     percentage = max(pcts, default=0)
 
     return {

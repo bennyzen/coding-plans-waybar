@@ -14,6 +14,16 @@ from typing import Any, Protocol, runtime_checkable
 STATUS_CLASSES = ("fresh", "stale", "critical", "exhausted", "empty")
 
 
+@dataclass(frozen=True)
+class ScopedWindow:
+    """A weekly limit scoped to one model or surface, e.g. "Fable this week"
+    on Claude Max. Sits beside the shared weekly window, not inside it."""
+
+    label: str            # "Fable", "Cowork", … — the provider's display name
+    pct: int | None       # 0–100
+    resets_ms: int | None # epoch milliseconds
+
+
 @dataclass
 class PlanStatus:
     """Normalised per-provider usage snapshot."""
@@ -29,6 +39,9 @@ class PlanStatus:
     # Epoch milliseconds of the next reset for each window.
     resets_short_ms: int | None = None
     resets_weekly_ms: int | None = None
+    # Additional weekly windows scoped to a model/surface. Rendered as extra
+    # rows after WEEKLY; count towards the worst-window classification.
+    scoped_weekly: list[ScopedWindow] = field(default_factory=list)
 
     plan_tier: str | None = None
     status_class: str = "empty"

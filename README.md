@@ -10,7 +10,9 @@ Soft-forked from [infiniV/claude-usage-waybar](https://github.com/infiniV/claude
 
 ## v1 providers
 
-- **Claude** (Anthropic) — via Claude Code statusLine + `ccusage`
+- **Claude** (Anthropic) — 5-hour, weekly and model-scoped weekly windows
+  ("Fable this week" on Max), today's tokens/cost, and the live session. See
+  [Where Claude's numbers come from](#where-claudes-numbers-come-from).
 - **Z.AI** (Zhipu GLM Coding Plan) — via `/api/monitor/usage/quota/limit`
 
 Adding a third provider is two files. See [PROVIDERS.md](PROVIDERS.md).
@@ -25,12 +27,12 @@ cd coding-plans-waybar
 
 The installer:
 
-1. Copies `coding-plans-{bar,popup,statusline,today}` to `~/.local/bin/`.
+1. Copies `coding-plans-{bar,popup,statusline,today,usage}` to `~/.local/bin/`.
 2. Copies the Python package + each provider's SVG + patcher helpers to `~/.local/share/coding-plans-waybar/`.
 3. Seeds `~/.config/coding-plans/config.toml` with every provider enabled.
 4. **Generates `custom/coding-plans-<id>` blocks into your Waybar config** — one per enabled provider — along with matching CSS that carries the SVG as a `background-image`. Everything is guarded by `// >>> coding-plans-waybar >>>` markers so a re-run replaces the block cleanly.
 5. Registers a Claude Code `statusLine.command` (chaining any previous one).
-6. Enables a 5-min systemd user timer for the `ccusage` backfill.
+6. Enables a 2-min systemd user timer that polls Claude's usage endpoint and runs the `ccusage` backfill.
 7. Reloads Waybar.
 
 Custom Waybar config path? Set `WAYBAR_CONFIG=/path/to/config` (and optionally `WAYBAR_DIR=/path/to/dir` if `style.css` is co-located). The installer auto-probes `config`, `config.jsonc`, and `config.json`.
@@ -60,10 +62,62 @@ echo 'sk-…' > ~/.config/coding-plans/zai-key && chmod 600 ~/.config/coding-pla
 
 Run its `./uninstall.sh` first, then ours. We deliberately don't automate that migration.
 
+## Where Claude's numbers come from
+
+Three sources feed `~/.cache/coding-plans/state.json`; the bar and popover
+only ever read that file.
+
+| Source | Runs | Provides |
+|---|---|---|
+| `coding-plans-usage` | systemd timer, every 2 min | 5-hour, weekly and every model-scoped weekly window (Fable) |
+| `coding-plans-statusline` | every Claude Code turn | 5-hour, weekly, plus the SESSION row (model, cost, context %) |
+| `coding-plans-today` | same timer, after the poll | TODAY row from `ccusage` |
+
+The timer poll calls the same endpoint the `/usage` dialog in Claude Code
+uses, `GET api.anthropic.com/api/oauth/usage`, with the access token Claude
+Code keeps in `~/.claude/.credentials.json`. It is read-only and never
+touches the refresh token. The model-scoped weekly limit only exists there:
+Claude Code's statusLine JSON carries `five_hour` and `seven_day` and nothing
+else, so without the poll the Fable row would be missing.
+
+Two consequences:
+
+- **The bar keeps moving while you're not typing.** The 5-hour window drains
+  and resets on schedule even between sessions.
+- **IDLE means the token expired.** Only Claude Code refreshes the access
+  token. Leave it closed for a few hours and the poll gets a 401, keeps the
+  last numbers, and the card flips to `IDLE · <age>`. The next Claude Code
+  turn refreshes the token and the poll picks up again. Nothing to do.
+
+The timer interval must stay under `behavior.stale_after_seconds` (default
+300) or the card flaps to IDLE between ticks. Override the credentials path
+with `CLAUDE_CREDENTIALS=/path/to/.credentials.json` in the service
+environment if yours lives elsewhere.
+
+## Bar label
+
+`[display] bar_format` in `config.toml` sets each provider's label. Default
+`{short_pct}%·{weekly_pct}%`. Placeholders:
+
+| Placeholder | Value |
+|---|---|
+| `{short_pct}` | 5-hour window, 0–100 |
+| `{weekly_pct}` | weekly window |
+| `{scoped_pct}` | first model-scoped weekly window (Fable on Claude Max); `?` when the provider has none |
+| `{brand}` | `display_name` tinted in the brand colour |
+| `{plan_tier}` | `PRO`, `MAX`, … when the provider reports it |
+| `{display_name}` | plain provider name |
+
+To put Fable in the bar: `bar_format = "{short_pct}%·{weekly_pct}%·{scoped_pct}%"`.
+Unknown placeholders render empty, so a format shared with Z.AI stays valid.
+
 ## What the popover shows
 
-Each provider card has a **5-HOUR WINDOW** and a **WEEKLY** row. Under the
-percentage and rail, the sub line reads:
+Each provider card has a **5-HOUR WINDOW** and a **WEEKLY** row. Claude Max
+plans with a model-scoped weekly limit ("Fable this week") get one extra
+**FABLE WEEKLY** row per scoped limit, and that row counts towards the
+`critical` / `exhausted` state like the other two. The Waybar hover tooltip
+shows the same rows. Under the percentage and rail, the sub line reads:
 
 ```
 RESETS · 4H 41M   PACE 0.5× · PROJ 50% · OK
@@ -173,7 +227,8 @@ The plugin loads directly from this checkout, so editing `bar.luau` hot-reloads.
 ├── coding-plans-bar          — Waybar exec (accepts --provider <id>)
 ├── coding-plans-popup        — GTK4 Adwaita popover
 ├── coding-plans-statusline   — Claude Code statusLine handler
-└── coding-plans-today        — ccusage backfill (bash+jq)
+├── coding-plans-today        — ccusage backfill (bash+jq)
+└── coding-plans-usage        — polls Claude's OAuth usage endpoint (timer)
 
 ~/.local/share/coding-plans-waybar/
 ├── lib/coding_plans/         — Python package
@@ -209,7 +264,7 @@ python3 -m venv --system-site-packages .pytest_venv
 .pytest_venv/bin/python -m pytest tests/ -q
 ```
 
-32 tests: provider fetches, bar rendering, installer patcher roundtrip, waybar generator.
+78 tests: provider fetches, the Claude usage-endpoint poll, bar rendering, installer patcher roundtrip, waybar generator.
 
 ## Attribution
 

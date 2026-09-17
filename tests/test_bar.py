@@ -118,3 +118,19 @@ def test_worst_class_wins(xdg, seeded_claude, write_config):
     write_config("[providers.claude]\nenabled = true\n")
     payload = _run_bar()
     assert payload["class"] == "exhausted"
+
+
+def test_bar_percentage_includes_scoped_weekly(xdg, seeded_claude, write_config):
+    """Waybar's ``percentage`` field drives CSS states; the model-scoped
+    weekly limit must count when it's the worst window."""
+    seeded_claude()
+    from coding_plans.state import load_state, provider_state, set_provider_state, write_state
+    st = load_state()
+    slice_ = dict(provider_state(st, "claude"))
+    slice_["scoped_weekly"] = [{"label": "Fable", "pct": 77, "resets_at": 1776852000}]
+    set_provider_state(st, "claude", slice_)
+    write_state(st)
+    write_config("[providers.claude]\nenabled = true\n")
+
+    payload = _run_bar()
+    assert payload["percentage"] == 77

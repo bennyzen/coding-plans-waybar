@@ -17,7 +17,7 @@ from typing import Any
 
 from ..formatters import is_stale, now
 from ..state import load_state, provider_state, set_provider_state, write_state
-from .base import PlanStatus
+from .base import PlanStatus, ScopedWindow
 
 PROVIDER_ID = "claude"
 DISPLAY_NAME = "Claude"
@@ -31,6 +31,7 @@ ICON_COLOR = "#D97757"
 DEFAULT_SLICE: dict[str, Any] = {
     "five_hour": {"pct": None, "resets_at": None},
     "seven_day": {"pct": None, "resets_at": None},
+    "scoped_weekly": [],
     "today": {"tokens": 0, "cost_usd": 0.0, "models": [], "by_model": []},
     "session": {
         "id": "",
@@ -54,17 +55,38 @@ def _classify(
     stale: bool,
     critical: int,
     exhausted: int,
+    scoped_pcts: tuple[int | None, ...] = (),
 ) -> str:
-    if short_pct is None and weekly_pct is None:
+    pcts = [p for p in (short_pct, weekly_pct, *scoped_pcts) if p is not None]
+    if not pcts:
         return "empty"
     if stale:
         return "stale"
-    worst = max((p for p in (short_pct, weekly_pct) if p is not None), default=0)
+    worst = max(pcts)
     if worst >= exhausted:
         return "exhausted"
     if worst >= critical:
         return "critical"
     return "fresh"
+
+
+def _scoped_windows(raw: object) -> list[ScopedWindow]:
+    """``scoped_weekly`` from state.json (written by ``claude_usage_api``)
+    → ``ScopedWindow`` list. Missing/malformed → empty, never raises."""
+    out: list[ScopedWindow] = []
+    for entry in raw if isinstance(raw, list) else []:
+        if not isinstance(entry, dict) or not entry.get("label"):
+            continue
+        pct = entry.get("pct")
+        resets = entry.get("resets_at")
+        out.append(
+            ScopedWindow(
+                label=str(entry["label"]),
+                pct=int(pct) if isinstance(pct, (int, float)) else None,
+                resets_ms=int(resets) * 1000 if isinstance(resets, (int, float)) and resets else None,
+            )
+        )
+    return out
 
 
 class ClaudeProvider:
@@ -91,9 +113,13 @@ class ClaudeProvider:
         weekly_pct = seven.get("pct")
         resets_short = five.get("resets_at")
         resets_weekly = seven.get("resets_at")
+        scoped = _scoped_windows(slice_.get("scoped_weekly"))
 
         stale = is_stale(updated_at, stale_limit)
-        cls = _classify(short_pct, weekly_pct, stale, critical, exhausted)
+        cls = _classify(
+            short_pct, weekly_pct, stale, critical, exhausted,
+            scoped_pcts=tuple(w.pct for w in scoped),
+        )
 
         return PlanStatus(
             provider_id=PROVIDER_ID,
@@ -102,6 +128,7 @@ class ClaudeProvider:
             weekly_pct=weekly_pct,
             resets_short_ms=int(resets_short) * 1000 if resets_short else None,
             resets_weekly_ms=int(resets_weekly) * 1000 if resets_weekly else None,
+            scoped_weekly=scoped,
             plan_tier=None,  # Claude's rate_limits don't expose tier
             status_class=cls,
             details=dict(slice_),
